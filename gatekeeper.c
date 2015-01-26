@@ -35,9 +35,9 @@ int init_udp6(unsigned short port, struct in6_addr * ia6);
 
 void usage(void)
 {
-	fprintf(stderr, "Usage:\n");
-	fprintf(stderr, "      -l <listen string> \n");
-	fprintf(stderr, "      -r <redirect string> \n");
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "      -l <listen string> \n");
+    fprintf(stderr, "      -r <redirect string> \n");
     fprintf(stderr, "      -k <optional path to key file>\n\n");
     fprintf(stderr, "   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail\n");
     fprintf(stderr, "                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail\n\n");
@@ -46,43 +46,43 @@ void usage(void)
 
 int main(int argc, char * argv[])
 {
-	char * keyfile     = NULL;
-	char * listenstr   = NULL;
+    char * keyfile     = NULL;
+    char * listenstr   = NULL;
     char * redirectstr = NULL;
-	int32_t c          = -1;
+    int32_t c          = -1;
    
     if (argc < 5)
     {
-    	usage();
-    	exit(1);
+        usage();
+        exit(1);
     }
-	while ((c=getopt(argc, argv, "hl:r:k:")) != -1)
-	{
-		switch (c)
-		{
-		case 'h':
-			usage();
-			return SUCCESS;
-		case 'l':
-			listenstr = optarg;
-			break;
+    while ((c=getopt(argc, argv, "hl:r:k:")) != -1)
+    {
+        switch (c)
+        {
+        case 'h':
+            usage();
+            return SUCCESS;
+        case 'l':
+            listenstr = optarg;
+            break;
         case 'r':
             redirectstr = optarg;
             break;
         case 'k':
             keyfile = optarg;
             break;
-		case '?':
-			usage();
-			if ('l' == optopt || 'r' == optopt || 'k' == optopt)
-				fprintf(stderr, "Option '-%c' requires an argument\n", optopt);
-			else if(isprint(optopt))
-				fprintf(stderr, "Unknown options '-%c'\n", optopt);
-			else
-				fprintf(stderr, "Unknown getopt return: 0x%x\n", c);
-			return SUCCESS;
-		}
-	}
+        case '?':
+            usage();
+            if ('l' == optopt || 'r' == optopt || 'k' == optopt)
+                fprintf(stderr, "Option '-%c' requires an argument\n", optopt);
+            else if(isprint(optopt))
+                fprintf(stderr, "Unknown options '-%c'\n", optopt);
+            else
+                fprintf(stderr, "Unknown getopt return: 0x%x\n", c);
+            return SUCCESS;
+        }
+    }
 
     setup_listener(listenstr);
 
@@ -111,7 +111,7 @@ int setup_listener(char * listenstr)
     {
         if (parse_address_string(listenstr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
         {
-        	fprintf(stdout, "TCP %s:%d\n", inet_ntoa(addr), port);
+            fprintf(stdout, "TCP %s:%d\n", inet_ntoa(addr), port);
         }
         fd = init_tcp4(port, &addr);
     }
@@ -119,7 +119,7 @@ int setup_listener(char * listenstr)
     {
         if (parse_address_string(listenstr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
         {
-        	fprintf(stdout, "UDP %s:%d\n", inet_ntoa(addr), port);
+            fprintf(stdout, "UDP %s:%d\n", inet_ntoa(addr), port);
         }
         fd = init_udp4(port, &addr);
     }
@@ -127,19 +127,19 @@ int setup_listener(char * listenstr)
     {
         if (parse_address_string(listenstr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
         {
-	        inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
-	        fprintf(stdout, "TCP [%s]:%d\n", str, port);
-	    }
-	    fd = init_tcp6(port, &addr6);
+            inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
+            fprintf(stdout, "TCP [%s]:%d\n", str, port);
+        }
+        fd = init_tcp6(port, &addr6);
     }
     else if (strncmp("udpipv6", listenstr, strlen("udpipv6")) == 0)
     {
         if (parse_address_string(listenstr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
-		{
-			inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
-	        fprintf(stdout, "UDP [%s]:%d\n", str, port);
-	    }
-	    fd = init_udp6(port, &addr6);
+        {
+            inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
+            fprintf(stdout, "UDP [%s]:%d\n", str, port);
+        }
+        fd = init_udp6(port, &addr6);
     }
 
     return SUCCESS;
