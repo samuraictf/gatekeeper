@@ -64,11 +64,11 @@ void Log(char *format, ...)
     vsnprintf(log_buf, sizeof(log_buf)-1, format, ap);
     if (log_fd == -1)
     {
-    	fprintf(stderr, log_buf);
+        fprintf(stderr, log_buf);
     }
     else
     {
-    	sendto(log_fd, log_buf, strlen(log_buf), 0, (struct sockaddr*)&log_addr, sizeof(log_addr));
+        sendto(log_fd, log_buf, strlen(log_buf), 0, (struct sockaddr*)&log_addr, sizeof(log_addr));
     }
     va_end(ap);
 }
@@ -142,19 +142,19 @@ int main(int argc, char * argv[])
         switch (c)
         {
         case 'h':
-        	/* help and exit*/
+            /* help and exit*/
             usage();
             goto cleanup;
         case 'l':
-        	/* save off listen argument string -- required*/
+            /* save off listen argument string -- required*/
             listenstr = optarg;
             break;
         case 'r':
-        	/* save off redirect argument string -- required*/
+            /* save off redirect argument string -- required*/
             redirectstr = optarg;
             break;
         case 'k':
-        	/* save off keyfile argument (optional) */
+            /* save off keyfile argument (optional) */
             keyfile = optarg;
             break;
         case 'o':
@@ -181,14 +181,14 @@ int main(int argc, char * argv[])
     /* check for required arguments */
     if (listenstr == NULL)
     {
-    	Log("Argument -l is required\n");
-    	goto cleanup;
+        Log("Argument -l is required\n");
+        goto cleanup;
     }
 
     if (redirectstr == NULL)
     {
-    	Log("Argument -r is required\n");
-    	goto cleanup;
+        Log("Argument -r is required\n");
+        goto cleanup;
     }
 
     /* setup logging server globals */
@@ -196,7 +196,7 @@ int main(int argc, char * argv[])
     {
         if (setup_logsocket(logsrvstr) == FAILURE)
         {
-        	Log("Failed to setup log server socket\n");
+            Log("Failed to setup log server socket\n");
             goto cleanup;
         }
     }
@@ -204,7 +204,7 @@ int main(int argc, char * argv[])
     /* set alarm if one was specified */
     if (alarmval != 0)
     {
-    	alarm(alarmval);
+        alarm(alarmval);
     }
 
     /* setup listener fd's */
@@ -244,14 +244,14 @@ void sigchld() {
  */
 int setup_logsocket(char * logsrvstr)
 {
-	log_addr.sin_family = AF_INET;
-	if(parse_address_string(logsrvstr, &log_addr.sin_addr.s_addr, sizeof(log_addr.sin_addr.s_addr), &log_addr.sin_port, AF_INET) == SUCCESS)
-	{
-		log_fd = socket(AF_INET, SOCK_DGRAM, 0);
-		if (log_fd == -1)
-			return FAILURE;
-	}
-	return SUCCESS;
+    log_addr.sin_family = AF_INET;
+    if(parse_address_string(logsrvstr, &log_addr.sin_addr.s_addr, sizeof(log_addr.sin_addr.s_addr), &log_addr.sin_port, AF_INET) == SUCCESS)
+    {
+        log_fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (log_fd == -1)
+            return FAILURE;
+    }
+    return SUCCESS;
 }
 
 /*
@@ -279,7 +279,7 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
 
     if (strncmp("stdio", listenstr, strlen("stdio")) == 0)
     {
-    	/* remove buffering on stdio */
+        /* remove buffering on stdio */
         if (0 != setvbuf(stdin, (char*) NULL, _IONBF, 0) ||
             0 != setvbuf(stdout, (char*) NULL, _IONBF, 0) ||
             0 != setvbuf(stderr, (char*) NULL, _IONBF, 0))
@@ -299,7 +299,7 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         }
         else
         {
-        	return FAILURE;
+            return FAILURE;
         }
         fd_r = fd_w = init_tcp4(port, &addr);
     }
@@ -309,10 +309,10 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         {
             Log("UDP %s:%d\n", inet_ntoa(addr), port);
         }
-		else
-		{
-			return FAILURE;
-		}
+        else
+        {
+            return FAILURE;
+        }
         fd_r = fd_w = init_udp4(port, &addr);
     }
     else if (strncmp("tcpipv6", listenstr, strlen("tcpipv6")) == 0)
@@ -322,10 +322,10 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
             inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
             Log("TCP [%s]:%d\n", str, port);
         }
-		else
-		{
-			return FAILURE;
-		}
+        else
+        {
+            return FAILURE;
+        }
         fd_r = fd_w = init_tcp6(port, &addr6);
     }
     else if (strncmp("udpipv6", listenstr, strlen("udpipv6")) == 0)
@@ -335,10 +335,10 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
             inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
             Log("UDP [%s]:%d\n", str, port);
         }
-		else
-		{
-			return FAILURE;
-		}
+        else
+        {
+            return FAILURE;
+        }
         fd_r = fd_w = init_udp6(port, &addr6);
     }
     *out_fd_r = fd_r;
@@ -359,7 +359,7 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
  * Other examples of valid input:
  *     - tcpipv4:1234                      will default addr to 0.0.0.0
  *     - tcpipv6:[::aaaa:bbbb:cccc]:80     ipv6 host with port 80 specified, ALL ipv6 hosts must be contained in []
- *     - udpipv4:192.168.0.1:1234		   ...
+ *     - udpipv4:192.168.0.1:1234          ...
  *
  * instr is the full input string
  * addr is the returned in_addr4 or in_addr6  structure after a inet_pton() call
@@ -520,11 +520,11 @@ int is_nonblock(int fd)
     }
     if (fl & O_NONBLOCK)
     {
-    	return 1;
+        return 1;
     }
     else
     {
-    	return 1;
+        return 1;
     }
 }
 
@@ -572,11 +572,11 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
     client_sock = accept_tcp_connection(fd);
     if (server_sock != NULL)
     {
-    	*server_sock = fd;
+        *server_sock = fd;
     }
     else
     {
-    	close(fd);
+        close(fd);
     }
     return client_sock;
 }
@@ -619,15 +619,15 @@ int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock)
         return FAILURE;
     }
     client_sock = accept_tcp_connection(fd);
-	if (server_sock != NULL)
-	{
-		*server_sock = fd;
-	}
-	else
-	{
-		close(fd);
-	}
-	return client_sock;
+    if (server_sock != NULL)
+    {
+        *server_sock = fd;
+    }
+    else
+    {
+        close(fd);
+    }
+    return client_sock;
 }
 
 /*
@@ -703,6 +703,6 @@ int init_udp6(unsigned short port, struct in6_addr * ia6)
 
 int accept_tcp_connection(int server_fd)
 {
-	int client_fd = -1;
-	return client_fd;
+    int client_fd = -1;
+    return client_fd;
 }
