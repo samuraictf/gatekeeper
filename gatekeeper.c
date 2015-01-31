@@ -34,16 +34,17 @@ struct sockaddr_in log_addr;
 void usage(void);
 void Log(char *format, ...);
 int main(int argc, char * argv[]);
-void sigchld(int sig);
+void sigchld();
 int setup_logsocket(char * logsrvstr);
 int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w);
 int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned short * port, int address_family);
 void set_nonblock(int fd);
-int init_tcp4(unsigned short port, struct in_addr * ia4);
-int init_tcp6(unsigned short port, struct in6_addr * ia6);
+int is_nonblock(int fd);
+int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock;)
+int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock);
 int init_udp4(unsigned short port, struct in_addr * ia4);
 int init_udp6(unsigned short port, struct in6_addr * ia6);
-
+int accept_tcp_connection(int server_fd);
 /*
  * Log functions takes in a format string and variable arguments.
  * It sends the resulting printf off to a UDP socket stored in log_buf
@@ -200,7 +201,7 @@ int main(int argc, char * argv[])
         }
     }
 
-    /* set alarm is one was specified */
+    /* set alarm if one was specified */
     if (alarmval != 0)
     {
     	alarm(alarmval);
@@ -233,11 +234,14 @@ cleanup:
  * having any zombie processes lying around
  */
 
-void sigchld(int sig) {
+void sigchld() {
     int status;
     while (wait4(-1, &status, WNOHANG, NULL) > 0) {  }
 }
 
+/*
+ * Setups a socket to be used with the logging server. IPv4 only. UDP socket.
+ */
 int setup_logsocket(char * logsrvstr)
 {
 	log_addr.sin_family = AF_INET;
@@ -250,6 +254,13 @@ int setup_logsocket(char * logsrvstr)
 	return SUCCESS;
 }
 
+/*
+ * Takes in the listenstr and returns to fd's one for output one for input
+ * in all socket types the fd's are the same value. In the case of stdin
+ * these are stdin and stdout and stderr is dup2() to stdout.
+ *
+ * At the end of this function server sockets will have a connected socket.
+ */
 int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
 {
     struct in_addr addr;
@@ -268,6 +279,7 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
 
     if (strncmp("stdio", listenstr, strlen("stdio")) == 0)
     {
+    	/* remove buffering on stdio */
         if (0 != setvbuf(stdin, (char*) NULL, _IONBF, 0) ||
             0 != setvbuf(stdout, (char*) NULL, _IONBF, 0) ||
             0 != setvbuf(stderr, (char*) NULL, _IONBF, 0))
@@ -276,13 +288,19 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         }
         fd_r = 0;
         fd_w = 1;
+        /* redirect stderr to stdout so we only have 2 fd's to deal with */
+        dup2(1, 2);
     }
     else if (strncmp("tcpipv4", listenstr, strlen("tcpipv4")) == 0)
     {
         if (parse_address_string(listenstr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
         {
             Log("TCP %s:%d\n", inet_ntoa(addr), port);
-        } else { return FAILURE; }
+        }
+        else
+        {
+        	return FAILURE;
+        }
         fd_r = fd_w = init_tcp4(port, &addr);
     }
     else if (strncmp("udpipv4", listenstr, strlen("udpipv4")) == 0)
@@ -290,7 +308,11 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         if (parse_address_string(listenstr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
         {
             Log("UDP %s:%d\n", inet_ntoa(addr), port);
-        } else { return FAILURE; }
+        }
+		else
+		{
+			return FAILURE;
+		}
         fd_r = fd_w = init_udp4(port, &addr);
     }
     else if (strncmp("tcpipv6", listenstr, strlen("tcpipv6")) == 0)
@@ -299,7 +321,11 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         {
             inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
             Log("TCP [%s]:%d\n", str, port);
-        } else { return FAILURE; }
+        }
+		else
+		{
+			return FAILURE;
+		}
         fd_r = fd_w = init_tcp6(port, &addr6);
     }
     else if (strncmp("udpipv6", listenstr, strlen("udpipv6")) == 0)
@@ -308,7 +334,11 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         {
             inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
             Log("UDP [%s]:%d\n", str, port);
-        } else { return FAILURE; }
+        }
+		else
+		{
+			return FAILURE;
+		}
         fd_r = fd_w = init_udp6(port, &addr6);
     }
     *out_fd_r = fd_r;
@@ -317,7 +347,26 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
 
 }
 
-
+/*
+ * Parses an "address string" that is passed in as a listen addr or remote addr. You can think of this
+ * a bit like how socat handles complex strings describing a connection. Each string need to have one of
+ * tcpipv4, tcpipv6, udpipv4, or udpipv6. Additional information is required though and this is specified
+ * by placing a colon after the initial string. So, in the case of tcpipv4 we need to know two things --
+ * an ipv4 address and a port. One example if a valid instr parameter might be "tcpipv4:127.0.0.1:8000"
+ * saying that the protocol is tcpipv4 and the ip address is 127.0.0.1 and the port is 8000. This same
+ * function is used for both listenstr and remotestr inputs.
+ *
+ * Other examples of valid input:
+ *     - tcpipv4:1234                      will default addr to 0.0.0.0
+ *     - tcpipv6:[::aaaa:bbbb:cccc]:80     ipv6 host with port 80 specified, ALL ipv6 hosts must be contained in []
+ *     - udpipv4:192.168.0.1:1234		   ...
+ *
+ * instr is the full input string
+ * addr is the returned in_addr4 or in_addr6  structure after a inet_pton() call
+ * addr_size is the size of the addr pointer, should be sizeof(struct in_addr[4|6])
+ * port is a pointer to a short value for the returned port number
+ * address_family is either AF_INET4 or AF_INET6
+ */
 int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned short * port, int address_family)
 {
     char * string_start = NULL;
@@ -434,6 +483,9 @@ int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned s
     return SUCCESS;
 }
 
+/*
+ * sets the O_NONBLOCK flag on the passed in fd
+ */
 void set_nonblock(int fd)
 {
     int fl = -1;
@@ -452,11 +504,44 @@ void set_nonblock(int fd)
     }
 }
 
-int init_tcp4(unsigned short port, struct in_addr * ia4)
+/*
+ * returns 1 if the fd has the O_NONBLOCK flag set
+ * returns 0 if the fd does NOT have the 0_NONBLOCK flag set, or on failure
+ */
+int is_nonblock(int fd)
+{
+    int fl = -1;
+    int x = -1;
+    fl = fcntl(fd, F_GETFL, 0);
+    if (fl < 0)
+    {
+        Log("fcntl F_GETFL: FD %d: %s\n", fd, strerror(errno));
+        return 0;
+    }
+    if (fl & O_NONBLOCK)
+    {
+    	return 1;
+    }
+    else
+    {
+    	return 1;
+    }
+}
+
+/*
+ * initializes a new tcp/ipv4 socket on the specified port, sets fd to non blocking, and accepts
+ * a new connection. Sockets will be bound to the in_addr specified in ia4. server socket is returned
+ * in the int * for server sock and the client socket is returned as the function return.
+ */
+int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
 {
     int fd = -1;
+    int client_sock;
     struct sockaddr_in my_addr;
+    struct sockaddr client_addr;
+    socklen_t client_len = sizof(client_addr);
     int one = 1;
+
     memset(&my_addr, 0, sizeof(my_addr));
     my_addr.sin_family = AF_INET;
     my_addr.sin_port = htons(port);
@@ -484,12 +569,26 @@ int init_tcp4(unsigned short port, struct in_addr * ia4)
         Log("Unable to listen on socket\n");
         return FAILURE;
     }
-    return fd;
+    client_sock = accept_tcp_connection(fd);
+    if (server_sock != NULL)
+    {
+    	*server_sock = fd;
+    }
+    else
+    {
+    	close(fd);
+    }
+    return client_sock;
 }
 
-int init_tcp6(unsigned short port, struct in6_addr * ia6)
+/* takes in port to lisent on as an IPv6 socket, will bind to address in in6_addr ia6 and
+ * returns connected client as function return. server sock is returned as the int *
+ */
+
+int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock)
 {
     int fd = -1;
+    int client_sock = -1;
     struct sockaddr_in6 my_addr;
     int one = 1;
     memset(&my_addr, 0, sizeof(my_addr));
@@ -519,9 +618,21 @@ int init_tcp6(unsigned short port, struct in6_addr * ia6)
         Log("Unable to listen on socket\n");
         return FAILURE;
     }
-    return fd;
+    client_sock = accept_tcp_connection(fd);
+	if (server_sock != NULL)
+	{
+		*server_sock = fd;
+	}
+	else
+	{
+		close(fd);
+	}
+	return client_sock;
 }
 
+/*
+ * sets up a udp / ipv4 socket for listening on specified port on address specified in in_addr ia4
+ */
 int init_udp4(unsigned short port, struct in_addr * ia4)
 {
     int fd = -1;
@@ -551,6 +662,9 @@ int init_udp4(unsigned short port, struct in_addr * ia4)
     }
     return fd;
 }
+/*
+ * sets up a udp / ipv6 socket for listening on specified port on address specified in in_addr ia6
+ */
 
 int init_udp6(unsigned short port, struct in6_addr * ia6)
 {
@@ -580,4 +694,15 @@ int init_udp6(unsigned short port, struct in6_addr * ia6)
         return FAILURE;
     }
     return fd;
+}
+
+/*
+ * accepts new TCP connection from the fd specified, socked should be bound and listening
+ * returns new client fd. discards connected client in_addr after logging.
+ */
+
+int accept_tcp_connection(int server_fd)
+{
+	int client_fd = -1;
+	return client_fd;
 }
