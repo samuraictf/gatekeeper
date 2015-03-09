@@ -1,50 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdarg.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/types.h>
-#ifdef _LINUX
-#include <sys/inotify.h>
-#endif
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <grp.h>
-#include <ifaddrs.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <pwd.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <net/if.h>
-#include <ctype.h>
+#include "gatekeeper.h"
 
-/* Defines */
-#define FAILURE -1
-#define SUCCESS 1
-
-/* Globals */
-int log_fd;
-struct sockaddr_in log_addr;
-
-/* Prototypes */
-void usage(void);
-void Log(char *format, ...);
-int main(int argc, char * argv[]);
-void sigchld();
-int setup_logsocket(char * logsrvstr);
-int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w);
-int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned short * port, int address_family);
-void set_nonblock(int fd);
-int is_nonblock(int fd);
-int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock;)
-int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock);
-int init_udp4(unsigned short port, struct in_addr * ia4);
-int init_udp6(unsigned short port, struct in6_addr * ia6);
-int accept_tcp_connection(int server_fd);
 /*
  * Log functions takes in a format string and variable arguments.
  * It sends the resulting printf off to a UDP socket stored in log_buf
@@ -85,6 +40,8 @@ void usage(void)
     Log("      -o <optional log server string> \n");
     Log("      -c <optional capture host string> \n");
     Log("      -a <optional alarm in seconds> \n");
+    Log("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0\n");
+    Log("      -f optional randomize file descriptors by opening and not closing /dev/urandom several times\n");
     Log("      -k <optional path to key file>\n\n");
     Log("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -l 10.0.0.2:2090\n");
     Log("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
@@ -107,21 +64,28 @@ void usage(void)
 
 int main(int argc, char * argv[])
 {
-    char * keyfile     = NULL;
-    char * listenstr   = NULL;
-    char * redirectstr = NULL;
-    char * logsrvstr   = NULL;
-    char * capsrvstr   = NULL;
-    int c              = -1;
+    char * keyfile        = NULL;
+    char * listenstr      = NULL;
+    char * redirectstr    = NULL;
+    char * logsrvstr      = NULL;
+    char * capsrvstr      = NULL;
+    int c                 = -1;
+    int i                 = -1;
+    int f                 = -1;
     unsigned int alarmval = 0;
-    int listen_fd_r    = -1;
-    int listen_fd_w    = -1;
-    int remote_fd_r    = -1;
-    int remote_fd_w    = -1;
+    unsigned int seed     = 0;
+    int listen_fd_r       = -1;
+    int listen_fd_w       = -1;
+    int remote_fd_r       = -1;
+    int remote_fd_w       = -1;
+    struct rlimit rl;
 
-    /* initialize globals */
-    log_fd             = -1;
+
+    /* initialize globals*/
+    log_fd = -1;
+
     memset(&log_addr, 0, sizeof(log_addr));
+    memset(&rl, 0, sizeof(rl));
 
     /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr */
     if (argc < 5)
@@ -130,6 +94,19 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
+    /* setup RNG */
+    f = open("/dev/urandom", O_RDONLY, NULL);
+	if (f == -1 || sizeof(seed) != read(f, &seed, sizeof(seed)))
+	{
+		seed=time(0);
+	}
+	srand(seed);
+	if(f != -1)
+	{
+		close(f);
+		f = -1;
+	}
+
     /* avoid zombie children */
     if (signal(SIGCHLD, sigchld) == SIG_ERR)
     {
@@ -137,7 +114,7 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
-    while ((c=getopt(argc, argv, "hl:r:k:o:c:a:")) != -1)
+    while ((c=getopt(argc, argv, "hl:r:k:o:c:a:df")) != -1)
     {
         switch (c)
         {
@@ -166,6 +143,20 @@ int main(int argc, char * argv[])
         case 'a':
             alarmval = atoi(optarg);
             break;
+        case 'd':
+            /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
+             * umask will render files unusable without a chmod first
+             */
+			umask(0);
+			setrlimit(RLIMIT_FSIZE, &rl);
+            break;
+        case 'f':
+            /* this will cause later opens after exec to have unexpected fd numbers */
+			for (i = 0; i < (int) rand()*100;i++)
+			{
+				open("/dev/urandom", O_RDONLY, NULL);
+			}
+        	break;
         case '?':
             usage();
             if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt)
@@ -181,13 +172,13 @@ int main(int argc, char * argv[])
     /* check for required arguments */
     if (listenstr == NULL)
     {
-        Log("Argument -l is required\n");
+        Log("Argument -l (listen string) is required\n");
         goto cleanup;
     }
 
     if (redirectstr == NULL)
     {
-        Log("Argument -r is required\n");
+        Log("Argument -r (redirect string) is required\n");
         goto cleanup;
     }
 
@@ -207,13 +198,17 @@ int main(int argc, char * argv[])
         alarm(alarmval);
     }
 
-    /* setup listener fd's */
-    if (setup_listener(listenstr, &listen_fd_r, &listen_fd_w) == FAILURE)
+    /* setup local listener fd's, will block to accept connections */
+    if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE)
     {
         goto cleanup;
     }
 
-    /* setup redirect fd's */
+    /* setup remote fd's */
+    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, REMOTE) == FAILURE)
+    {
+    	goto cleanup;
+    }
 
     /* start the pumps */
 
@@ -222,6 +217,10 @@ cleanup:
     if (listen_fd_r != -1)
         close(listen_fd_r);
     if (listen_fd_w != -1)
+        close(listen_fd_w);
+    if (remote_fd_r != -1)
+        close(listen_fd_r);
+    if (remote_fd_w != -1)
         close(listen_fd_w);
     if (log_fd != -1)
         close(log_fd);
@@ -255,13 +254,16 @@ int setup_logsocket(char * logsrvstr)
 }
 
 /*
- * Takes in the listenstr and returns to fd's one for output one for input
+ * Takes in the instr and returns to fd's one for output one for input
  * in all socket types the fd's are the same value. In the case of stdin
  * these are stdin and stdout and stderr is dup2() to stdout.
  *
+ * if local is true then it will listen for local connections
+ * if local is 0 it will connect / exec to remote target
+ *
  * At the end of this function server sockets will have a connected socket.
  */
-int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
+int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
 {
     struct in_addr addr;
     struct in6_addr addr6;
@@ -269,6 +271,7 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
     char str[INET6_ADDRSTRLEN];
     int fd_r = -1;
     int fd_w = -1;
+    pid_t pid = 0;
 
     *out_fd_r = fd_r;
     *out_fd_r = fd_w;
@@ -277,23 +280,34 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
     memset(&addr, 0, sizeof(addr));
     memset(&addr6, 0, sizeof(addr6));
 
-    if (strncmp("stdio", listenstr, strlen("stdio")) == 0)
+    if (strncmp("stdio", instr, strlen("stdio")) == 0)
     {
-        /* remove buffering on stdio */
-        if (0 != setvbuf(stdin, (char*) NULL, _IONBF, 0) ||
-            0 != setvbuf(stdout, (char*) NULL, _IONBF, 0) ||
-            0 != setvbuf(stderr, (char*) NULL, _IONBF, 0))
-        {
-            return FAILURE;
-        }
-        fd_r = 0;
-        fd_w = 1;
-        /* redirect stderr to stdout so we only have 2 fd's to deal with */
-        dup2(1, 2);
+    	if (local)
+    	{
+			/* remove buffering on stdio */
+			if (0 != setvbuf(stdin, (char*) NULL, _IONBF, 0) ||
+				0 != setvbuf(stdout, (char*) NULL, _IONBF, 0) ||
+				0 != setvbuf(stderr, (char*) NULL, _IONBF, 0))
+			{
+				return FAILURE;
+			}
+			fd_r = 0;
+			fd_w = 1;
+			/* redirect stderr to stdout so we only have 2 fd's to deal with */
+			dup2(1, 2);
+    	}
+    	else
+    	{
+    		pid = fork();
+    		if (pid == 0)
+    		{
+    			/* child process -- randomize environment and execve */
+    		}
+    	}
     }
-    else if (strncmp("tcpipv4", listenstr, strlen("tcpipv4")) == 0)
+    else if (strncmp("tcpipv4", instr, strlen("tcpipv4")) == 0)
     {
-        if (parse_address_string(listenstr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
+        if (parse_address_string(instr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
         {
             Log("TCP %s:%d\n", inet_ntoa(addr), port);
         }
@@ -301,11 +315,18 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         {
             return FAILURE;
         }
-        fd_r = fd_w = init_tcp4(port, &addr);
+        if (local)
+        {
+        	fd_r = fd_w = init_tcp4(port, &addr, NULL);
+        }
+        else
+        {
+
+        }
     }
-    else if (strncmp("udpipv4", listenstr, strlen("udpipv4")) == 0)
+    else if (strncmp("udpipv4", instr, strlen("udpipv4")) == 0)
     {
-        if (parse_address_string(listenstr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
+        if (parse_address_string(instr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
         {
             Log("UDP %s:%d\n", inet_ntoa(addr), port);
         }
@@ -313,11 +334,18 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         {
             return FAILURE;
         }
-        fd_r = fd_w = init_udp4(port, &addr);
+        if(local)
+        {
+        	fd_r = fd_w = init_udp4(port, &addr);
+        }
+        else
+        {
+
+        }
     }
-    else if (strncmp("tcpipv6", listenstr, strlen("tcpipv6")) == 0)
+    else if (strncmp("tcpipv6", instr, strlen("tcpipv6")) == 0)
     {
-        if (parse_address_string(listenstr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
+        if (parse_address_string(instr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
         {
             inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
             Log("TCP [%s]:%d\n", str, port);
@@ -326,11 +354,18 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         {
             return FAILURE;
         }
-        fd_r = fd_w = init_tcp6(port, &addr6);
+        if(local)
+        {
+        	fd_r = fd_w = init_tcp6(port, &addr6, NULL);
+       	}
+        else
+        {
+
+        }
     }
-    else if (strncmp("udpipv6", listenstr, strlen("udpipv6")) == 0)
+    else if (strncmp("udpipv6", instr, strlen("udpipv6")) == 0)
     {
-        if (parse_address_string(listenstr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
+        if (parse_address_string(instr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
         {
             inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
             Log("UDP [%s]:%d\n", str, port);
@@ -339,12 +374,23 @@ int setup_listener(char * listenstr, int * out_fd_r, int * out_fd_w)
         {
             return FAILURE;
         }
-        fd_r = fd_w = init_udp6(port, &addr6);
+        if(local)
+        {
+        	fd_r = fd_w = init_udp6(port, &addr6);
+        }
+        else
+        {
+
+        }
+    }
+    else
+    {
+    	Log("Invalid listen string, one of stdio, tcpipv4, tcpipv6, udpipv4, udpipv6 is required\n");
+    	return FAILURE;
     }
     *out_fd_r = fd_r;
     *out_fd_w = fd_w;
     return SUCCESS;
-
 }
 
 /*
@@ -481,228 +527,4 @@ int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned s
         return FAILURE;
     }
     return SUCCESS;
-}
-
-/*
- * sets the O_NONBLOCK flag on the passed in fd
- */
-void set_nonblock(int fd)
-{
-    int fl = -1;
-    int x = -1;
-    fl = fcntl(fd, F_GETFL, 0);
-    if (fl < 0)
-    {
-        Log("fcntl F_GETFL: FD %d: %s\n", fd, strerror(errno));
-        return;
-    }
-    x = fcntl(fd, F_SETFL, fl | O_NONBLOCK);
-    if (x < 0)
-    {
-        Log("fcntl F_SETFL: FD %d: %s\n", fd, strerror(errno));
-        return;
-    }
-}
-
-/*
- * returns 1 if the fd has the O_NONBLOCK flag set
- * returns 0 if the fd does NOT have the 0_NONBLOCK flag set, or on failure
- */
-int is_nonblock(int fd)
-{
-    int fl = -1;
-    int x = -1;
-    fl = fcntl(fd, F_GETFL, 0);
-    if (fl < 0)
-    {
-        Log("fcntl F_GETFL: FD %d: %s\n", fd, strerror(errno));
-        return 0;
-    }
-    if (fl & O_NONBLOCK)
-    {
-        return 1;
-    }
-    else
-    {
-        return 1;
-    }
-}
-
-/*
- * initializes a new tcp/ipv4 socket on the specified port, sets fd to non blocking, and accepts
- * a new connection. Sockets will be bound to the in_addr specified in ia4. server socket is returned
- * in the int * for server sock and the client socket is returned as the function return.
- */
-int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
-{
-    int fd = -1;
-    int client_sock;
-    struct sockaddr_in my_addr;
-    struct sockaddr client_addr;
-    socklen_t client_len = sizof(client_addr);
-    int one = 1;
-
-    memset(&my_addr, 0, sizeof(my_addr));
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(port);
-    memcpy(&my_addr.sin_addr, (void *) ia4, sizeof(my_addr.sin_addr));
-
-    fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd == -1)
-    {
-        Log("Unable to create socket\n");
-        return FAILURE;
-    }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
-        Log("Unable to set SO_REUSEADDR\n");
-        return FAILURE;
-    }
-    set_nonblock(fd);
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
-        Log("Unable to bind socket\n");
-        return FAILURE;
-    }
-    if (listen(fd, 40) == -1)
-    {
-        Log("Unable to listen on socket\n");
-        return FAILURE;
-    }
-    client_sock = accept_tcp_connection(fd);
-    if (server_sock != NULL)
-    {
-        *server_sock = fd;
-    }
-    else
-    {
-        close(fd);
-    }
-    return client_sock;
-}
-
-/* takes in port to lisent on as an IPv6 socket, will bind to address in in6_addr ia6 and
- * returns connected client as function return. server sock is returned as the int *
- */
-
-int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock)
-{
-    int fd = -1;
-    int client_sock = -1;
-    struct sockaddr_in6 my_addr;
-    int one = 1;
-    memset(&my_addr, 0, sizeof(my_addr));
-    my_addr.sin6_family = AF_INET6;
-    my_addr.sin6_port = htons(port);
-    memcpy(&my_addr.sin6_addr, (void *) ia6, sizeof(my_addr.sin6_addr));
-
-    fd = socket(AF_INET6, SOCK_STREAM, 0);
-    if (fd == -1)
-    {
-        Log("Unable to create socket\n");
-        return FAILURE;
-    }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
-        Log("Unable to set SO_REUSEADDR\n");
-        return FAILURE;
-    }
-    set_nonblock(fd);
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
-        Log("Unable to bind socket\n");
-        return FAILURE;
-    }
-    if (listen(fd, 40) == -1)
-    {
-        Log("Unable to listen on socket\n");
-        return FAILURE;
-    }
-    client_sock = accept_tcp_connection(fd);
-    if (server_sock != NULL)
-    {
-        *server_sock = fd;
-    }
-    else
-    {
-        close(fd);
-    }
-    return client_sock;
-}
-
-/*
- * sets up a udp / ipv4 socket for listening on specified port on address specified in in_addr ia4
- */
-int init_udp4(unsigned short port, struct in_addr * ia4)
-{
-    int fd = -1;
-    struct sockaddr_in my_addr;
-    int one = 1;
-    memset(&my_addr, 0, sizeof(my_addr));
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(port);
-    memcpy(&my_addr.sin_addr, (void *) ia4, sizeof(my_addr.sin_addr));
-
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd == -1)
-    {
-        Log("Unable to create socket\n");
-        return FAILURE;
-    }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
-        Log("Unable to set SO_REUSEADDR\n");
-        return FAILURE;
-    }
-    set_nonblock(fd);
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
-        Log("Unable to bind socket\n");
-        return FAILURE;
-    }
-    return fd;
-}
-/*
- * sets up a udp / ipv6 socket for listening on specified port on address specified in in_addr ia6
- */
-
-int init_udp6(unsigned short port, struct in6_addr * ia6)
-{
-    int fd = -1;
-    struct sockaddr_in6 my_addr;
-    int one = 1;
-    memset(&my_addr, 0, sizeof(my_addr));
-    my_addr.sin6_family = AF_INET6;
-    my_addr.sin6_port = htons(port);
-    memcpy(&my_addr.sin6_addr, (void *) ia6, sizeof(my_addr.sin6_addr));
-
-    fd = socket(AF_INET6, SOCK_DGRAM, 0);
-    if (fd == -1)
-    {
-        Log("Unable to create socket\n");
-        return FAILURE;
-    }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
-        Log("Unable to set SO_REUSEADDR\n");
-        return FAILURE;
-    }
-    set_nonblock(fd);
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
-        Log("Unable to bind socket\n");
-        return FAILURE;
-    }
-    return fd;
-}
-
-/*
- * accepts new TCP connection from the fd specified, socked should be bound and listening
- * returns new client fd. discards connected client in_addr after logging.
- */
-
-int accept_tcp_connection(int server_fd)
-{
-    int client_fd = -1;
-    return client_fd;
 }

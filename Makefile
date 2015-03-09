@@ -1,4 +1,4 @@
-CFLAGS += -O2 \
+CFLAGS += -O3 \
 	-fstack-protector-all -Wformat -Wformat=2 -Wformat-security -fPIE -D_FORTIFY_SOURCE=2 \
 	-pedantic-errors \
 	-Wall -Wextra \
@@ -6,4 +6,4 @@ CFLAGS += -O2 \
 	-Wunreachable-code -Winline -Wfloat-equal
 
 all:
-	gcc $(CFLAGS) -o gatekeeper gatekeeper.c
+	gcc $(CFLAGS) -o gatekeeper gatekeeper.c sockets.c
