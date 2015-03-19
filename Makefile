@@ -1,4 +1,4 @@
-CFLAGS += -O3 \
+CFLAGS += -O0 -ggdb \
 	-fstack-protector-all -Wformat -Wformat=2 -Wformat-security -fPIE -D_FORTIFY_SOURCE=2 \
 	-pedantic-errors \
 	-Wall -Wextra \

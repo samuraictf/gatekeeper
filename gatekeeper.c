@@ -40,6 +40,7 @@ void usage(void)
     Log("      -o <optional log server string> \n");
     Log("      -c <optional capture host string> \n");
     Log("      -a <optional alarm in seconds> \n");
+    Log("      -e <optional randomize child environment> \n");
     Log("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0\n");
     Log("      -f optional randomize file descriptors by opening and not closing /dev/urandom several times\n");
     Log("      -k <optional path to key file>\n\n");
@@ -70,8 +71,9 @@ int main(int argc, char * argv[])
     char * logsrvstr      = NULL;
     char * capsrvstr      = NULL;
     int c                 = -1;
-    int i                 = -1;
     int f                 = -1;
+    int rand_env          = 0;
+    unsigned int i        = 0;
     unsigned int alarmval = 0;
     unsigned int seed     = 0;
     int listen_fd_r       = -1;
@@ -106,7 +108,8 @@ int main(int argc, char * argv[])
 		close(f);
 		f = -1;
 	}
-
+	seed = 0;
+	build_rand_envp();
     /* avoid zombie children */
     if (signal(SIGCHLD, sigchld) == SIG_ERR)
     {
@@ -114,7 +117,7 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
-    while ((c=getopt(argc, argv, "hl:r:k:o:c:a:df")) != -1)
+    while ((c=getopt(argc, argv, "hl:r:k:o:c:a:dfe")) != -1)
     {
         switch (c)
         {
@@ -143,6 +146,9 @@ int main(int argc, char * argv[])
         case 'a':
             alarmval = atoi(optarg);
             break;
+        case 'e':
+            rand_env = 1;
+            break;
         case 'd':
             /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
              * umask will render files unusable without a chmod first
@@ -151,8 +157,8 @@ int main(int argc, char * argv[])
 			setrlimit(RLIMIT_FSIZE, &rl);
             break;
         case 'f':
-            /* this will cause later opens after exec to have unexpected fd numbers */
-			for (i = 0; i < (int) rand()*100;i++)
+            /* this will cause later opens after exec to have unexpected fd numbers, we don't close these */
+			for (i = 0; i < (unsigned int) ((rand() % 100) + 1); i++)
 			{
 				open("/dev/urandom", O_RDONLY, NULL);
 			}
@@ -205,7 +211,7 @@ int main(int argc, char * argv[])
     }
 
     /* setup remote fd's */
-    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, REMOTE) == FAILURE)
+    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, rand_env ? REMOTE_RAND_ENV : REMOTE) == FAILURE)
     {
     	goto cleanup;
     }
@@ -232,7 +238,6 @@ cleanup:
  * This farms exit status from forked children to avoid
  * having any zombie processes lying around
  */
-
 void sigchld() {
     int status;
     while (wait4(-1, &status, WNOHANG, NULL) > 0) {  }
@@ -254,12 +259,14 @@ int setup_logsocket(char * logsrvstr)
 }
 
 /*
- * Takes in the instr and returns to fd's one for output one for input
- * in all socket types the fd's are the same value. In the case of stdin
- * these are stdin and stdout and stderr is dup2() to stdout.
+ * Takes in the instr and returns two fd's, one for output one for input
+ * in all socket type connections the fd's are the same value.
+ * In the case of stdin these are stdin and stdout and stderr is dup2() to stdout.
  *
- * if local is true then it will listen for local connections
- * if local is 0 it will connect / exec to remote target
+ * if local is 1 then it will listen for local connections
+ * if local is 2 then it will listen for local connections AND randomize the
+ *   environment before execve
+ * if local is 0 it will connect or exec to the remote target
  *
  * At the end of this function server sockets will have a connected socket.
  */
@@ -272,6 +279,13 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     int fd_r = -1;
     int fd_w = -1;
     pid_t pid = 0;
+    char * args_start = NULL;
+    unsigned int arg_count = 0;
+    unsigned int i = 0;
+    unsigned int arg_len = 0;
+    char * arg = NULL;
+    char ** envp = NULL;
+    char ** argv = NULL;
 
     *out_fd_r = fd_r;
     *out_fd_r = fd_w;
@@ -282,7 +296,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
 
     if (strncmp("stdio", instr, strlen("stdio")) == 0)
     {
-    	if (local)
+    	if (local==LOCAL)
     	{
 			/* remove buffering on stdio */
 			if (0 != setvbuf(stdin, (char*) NULL, _IONBF, 0) ||
@@ -296,12 +310,49 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
 			/* redirect stderr to stdout so we only have 2 fd's to deal with */
 			dup2(1, 2);
     	}
-    	else
+    	else if (local == REMOTE || local == REMOTE_RAND_ENV)
     	{
     		pid = fork();
     		if (pid == 0)
     		{
-    			/* child process -- randomize environment and execve */
+    			/* child process */
+    			args_start = strchr(instr, ':');
+    			if (args_start == NULL)
+    			{
+    				Log("Invalid remote string, stdio specified without a : followed by a program to run. i.e. stdio:/bin/cat\n");
+    				return FAILURE;
+    			}
+
+    			/* count the number of spaces for arguments */
+    			for (arg_count = 0; *instr; instr++)
+    			{
+    				if (*instr == ' ')
+    				{
+    						arg_count++;
+    				}
+    			}
+    			argv = calloc(sizeof(void *) * (arg_count + 2), 1);
+    			if (argv==NULL)
+    				return FAILURE;
+
+    			arg = args_start;
+    			for (i = 0; i <= arg_count; i++)
+    			{
+    				for (arg_len = 0; arg[arg_len] && arg[arg_len]!=' '; arg_len++);
+    				argv[i] = calloc(arg_len+1, 1);
+
+    				if (argv[i] == NULL)
+    					return FAILURE;
+
+    				memcpy(argv[i], arg-arg_len, arg_len);
+    			}
+
+    			if (local == REMOTE_RAND_ENV)
+    			{
+    				envp = build_rand_envp();
+    				/*argv = getenv("GATEKEEPER_EXEC_ARGS");
+    				execve()*/
+    			}
     		}
     	}
     }
@@ -315,11 +366,11 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         {
             return FAILURE;
         }
-        if (local)
+        if (local==LOCAL)
         {
         	fd_r = fd_w = init_tcp4(port, &addr, NULL);
         }
-        else
+        else if (local == REMOTE)
         {
 
         }
@@ -334,11 +385,11 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         {
             return FAILURE;
         }
-        if(local)
+        if(local==LOCAL)
         {
         	fd_r = fd_w = init_udp4(port, &addr);
         }
-        else
+        else if (local == REMOTE)
         {
 
         }
@@ -354,11 +405,11 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         {
             return FAILURE;
         }
-        if(local)
+        if(local==LOCAL)
         {
         	fd_r = fd_w = init_tcp6(port, &addr6, NULL);
        	}
-        else
+        else if (local == REMOTE)
         {
 
         }
@@ -374,11 +425,11 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         {
             return FAILURE;
         }
-        if(local)
+        if(local==LOCAL)
         {
         	fd_r = fd_w = init_udp6(port, &addr6);
         }
-        else
+        else if (local == REMOTE)
         {
 
         }
@@ -528,3 +579,54 @@ int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned s
     }
     return SUCCESS;
 }
+
+char ** build_rand_envp()
+{
+	char ** ret = NULL;
+	int n = rand() % 1000 + 1;
+	int i = 0;
+	int x = 0;
+	int name_len = 0;
+	int val_len = 0;
+	unsigned char c = 0;
+	ret = calloc(sizeof(void*) * (n+1), 1);
+	if (ret == NULL)
+		return ret;
+	for (i = 0; i < n; i++)
+	{
+		name_len = rand() % 500 + 1;
+		val_len = rand() % 500 + 1;
+		ret[i] = calloc(name_len + val_len + 2, 1);
+		if (ret[i] == NULL)
+			break;
+		for (x = 0; x < name_len; x++)
+		{
+			c = (unsigned char) rand();
+			if(isalnum(c))
+			{
+				ret[i][x] = c;
+			}
+			else
+			{
+				x--;
+			}
+		}
+		ret[i][x] = '=';
+		for (x = name_len + 1; x < name_len+val_len+1; x++)
+		{
+			c = (unsigned char) rand() * 255;
+			if(isalnum(c))
+			{
+				ret[i][x] = c;
+			}
+			else
+			{
+				x--;
+			}
+		}
+		ret[i][x] = '\0';
+	}
+	ret[i] = NULL;
+	return ret;
+}
+
