@@ -81,7 +81,10 @@ int main(int argc, char * argv[])
     int remote_fd_r       = -1;
     int remote_fd_w       = -1;
     struct rlimit rl;
-
+    fd_set readfds;
+    int highest_fd;
+    int num_bytes;
+    char *recvbuf[RECVBUF_SIZE];
 
     /* initialize globals*/
     log_fd = -1;
@@ -217,6 +220,48 @@ int main(int argc, char * argv[])
     }
 
     /* start the pumps */
+    if (listen_fd_r > remote_fd_r) {
+        highest_fd = listen_fd_r;
+    }
+    else {
+        highest_fd = remote_fd_r;
+    }
+    while (1) {
+        /* move out of loop and memcpy from tmp variable instead? maybe later. */
+        FD_ZERO(&readfds);
+        FD_SET(listen_fd_r, &readfds);
+        FD_SET(remote_fd_r, &readfds);
+        if (select(highest_fd+1, &readfds, NULL, NULL, NULL) == -1) {
+            Log("select() threw an error: %s\n", strerror(errno));
+            goto cleanup;
+        }
+        if (FD_ISSET(listen_fd_r, &readfds)) {
+            if ((num_bytes = read(listen_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
+                Log("Got EOF on listen_fd_r\n");
+                goto cleanup;
+            }
+            /* here's where we run checks on recvbuf to decide yay/nay on forwarding traffic */
+
+            /* now pump out remote_fd_w */
+            if (write(remote_fd_w, recvbuf, num_bytes) != num_bytes) {
+                Log("Huh? Couldn't write all available data to remote_fd...\n");
+                /* fail here? */
+            }
+        }
+        else if (FD_ISSET(remote_fd_r, &readfds)) {
+            if ((num_bytes = read(remote_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
+                Log("Got EOF on remote_fd_r\n");
+                goto cleanup;
+            }
+            /* here's where we run checks on recvbuf to decide yay/nay on forwarding traffic */
+
+            /* now pump out listen_fd_w */
+            if (write(listen_fd_w, recvbuf, num_bytes) != num_bytes) {
+                Log("Huh? Couldn't write all available data to listen_fd...\n");
+                /* fail here? */
+            }
+        }
+    }
 
 
 cleanup:
@@ -225,9 +270,9 @@ cleanup:
     if (listen_fd_w != -1)
         close(listen_fd_w);
     if (remote_fd_r != -1)
-        close(listen_fd_r);
+        close(remote_fd_r);
     if (remote_fd_w != -1)
-        close(listen_fd_w);
+        close(remote_fd_w);
     if (log_fd != -1)
         close(log_fd);
 
@@ -372,7 +417,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         }
         else if (local == REMOTE)
         {
-
+            fd_r = fd_w = connect_ipv4(SOCK_STREAM, port, &addr);
         }
     }
     else if (strncmp("udpipv4", instr, strlen("udpipv4")) == 0)
@@ -391,7 +436,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         }
         else if (local == REMOTE)
         {
-
+            fd_r = fd_w = connect_ipv4(SOCK_DGRAM, port, &addr);
         }
     }
     else if (strncmp("tcpipv6", instr, strlen("tcpipv6")) == 0)
@@ -411,7 +456,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
        	}
         else if (local == REMOTE)
         {
-
+            fd_r = fd_w = connect_ipv6(SOCK_STREAM, port, &addr6);
         }
     }
     else if (strncmp("udpipv6", instr, strlen("udpipv6")) == 0)
@@ -431,7 +476,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         }
         else if (local == REMOTE)
         {
-
+            fd_r = fd_w = connect_ipv6(SOCK_DGRAM, port, &addr6);
         }
     }
     else

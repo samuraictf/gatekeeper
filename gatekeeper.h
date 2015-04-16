@@ -23,7 +23,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-#include <sys/types.h>
+#include <sys/time.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -35,6 +35,7 @@
 #define LOCAL 1
 #define REMOTE 0
 #define REMOTE_RAND_ENV 2
+#define RECVBUF_SIZE 1024
 
 /* Globals */
 int log_fd;
@@ -56,5 +57,7 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock);
 int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock);
 int init_udp4(unsigned short port, struct in_addr * ia4);
 int init_udp6(unsigned short port, struct in6_addr * ia6);
+int connect_ipv4(int type, unsigned short port, struct in_addr * ia4);
+int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6);
 int accept_tcp_connection(int server_fd, int address_family);
 #endif

@@ -206,6 +206,69 @@ int init_udp6(unsigned short port, struct in6_addr * ia6)
     return fd;
 }
 
+/* 
+ * connects and returns an ipv4 socket of any type on specified port 
+ * on address specified in in_addr ia4
+ */
+
+int connect_ipv4(int type, unsigned short port, struct in_addr * ia4)
+{
+    int fd = -1;
+    struct sockaddr_in addr;
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    memcpy(&addr.sin_addr, (void *) ia4, sizeof(addr.sin_addr));
+
+    fd = socket(AF_INET, type, 0);
+    if (fd == -1)
+    {
+        Log("Unable to create socket\n");
+        return FAILURE;
+    }
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        Log("Unable to connect on port %d: %s\n", port, strerror(errno));
+        close(fd);
+        return FAILURE;
+    }
+    /* set non-blocking AFTER connect() call to avoid EINPROGRESS error */
+    set_nonblock(fd);
+    
+    return fd;   
+}
+
+/* 
+ * connects and returns an ipv6 socket of any type on specified port 
+ * on address specified in in6_addr ia6
+ */
+
+int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6)
+{
+    int fd = -1;
+    struct sockaddr_in6 addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin6_family = AF_INET6;
+    addr.sin6_port = htons(port);
+    memcpy(&addr.sin6_addr, (void *) ia6, sizeof(addr.sin6_addr));
+
+    fd = socket(AF_INET6, type, 0);
+    if (fd == -1)
+    {
+        Log("Unable to create socket\n");
+        return FAILURE;
+    }
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        Log("Unable to connect on port %d: %s\n", port, strerror(errno));
+        close(fd);
+        return FAILURE;
+    }
+    /* set non-blocking AFTER connect() call to avoid EINPROGRESS error */
+    set_nonblock(fd);
+
+    return fd;
+}
+
 /*
  * accepts new TCP connection from the fd specified, socked should be bound and listening
  * returns new client fd. discards connected client in_addr after logging.
