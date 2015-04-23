@@ -56,6 +56,7 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
     int client_sock;
     struct sockaddr_in my_addr;
     int one = 1;
+    int pid;
 
     memset(&my_addr, 0, sizeof(my_addr));
     my_addr.sin_family = AF_INET;
@@ -83,17 +84,32 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
         Log("Unable to listen on socket\n");
         return FAILURE;
     }
-    client_sock = accept_tcp_connection(fd, AF_INET);
-    set_nonblock(client_sock);
-    if (server_sock != NULL)
-    {
-        *server_sock = fd;
+    while (1) {
+        client_sock = accept_tcp_connection(fd, AF_INET);
+        pid = fork();
+        if (pid == -1) {
+            Log("Error on fork() in init_tcp4()\n");
+            return FAILURE;
+        }
+        else if (pid == 0) {
+            /* child */
+            set_nonblock(client_sock);
+            /* not sure of the point of returning server_sock */
+            if (server_sock != NULL) {
+                *server_sock = fd;
+            }
+            else {
+                close(fd);
+            }
+            return client_sock;
+        }
+        else {
+            /* parent */
+            close(client_sock);
+        }
     }
-    else
-    {
-        close(fd);
-    }
-    return client_sock;
+    /* should never reach this */
+    return FAILURE;
 }
 
 /* takes in port to listen on as an IPv6 socket, will bind to address in in6_addr ia6 and
@@ -101,13 +117,14 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
  * if server_sock is not null it will be returned in the pointer otherwise the server
  * socket will be closed in this function. client socket is in nonblocking mode.
  */
-
 int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock)
 {
     int fd = -1;
     int client_sock = -1;
     struct sockaddr_in6 my_addr;
     int one = 1;
+    int pid;
+
     memset(&my_addr, 0, sizeof(my_addr));
     my_addr.sin6_family = AF_INET6;
     my_addr.sin6_port = htons(port);
@@ -129,17 +146,32 @@ int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock)
         Log("Unable to bind socket\n");
         return FAILURE;
     }
-    client_sock = accept_tcp_connection(fd, AF_INET6);
-    set_nonblock(client_sock);
-    if (server_sock != NULL)
-    {
-        *server_sock = fd;
+    while (1) {
+        client_sock = accept_tcp_connection(fd, AF_INET6);
+        pid = fork();
+        if (pid == -1) {
+            Log("Error on fork() in init_tcp6()\n");
+            return FAILURE;
+        }
+        else if (pid == 0) {
+            /* child */
+            set_nonblock(client_sock);
+            /* not sure of the point of returning server_sock */
+            if (server_sock != NULL) {
+                *server_sock = fd;
+            }
+            else {
+                close(fd);
+            }
+            return client_sock;
+        }
+        else {
+            /* parent */
+            close(client_sock);
+        }
     }
-    else
-    {
-        close(fd);
-    }
-    return client_sock;
+    /* should never reach this */
+    return FAILURE;
 }
 
 /*
@@ -150,60 +182,108 @@ int init_udp4(unsigned short port, struct in_addr * ia4)
     int fd = -1;
     struct sockaddr_in my_addr;
     int one = 1;
+    int pid;
+
     memset(&my_addr, 0, sizeof(my_addr));
     my_addr.sin_family = AF_INET;
     my_addr.sin_port = htons(port);
     memcpy(&my_addr.sin_addr, (void *) ia4, sizeof(my_addr.sin_addr));
 
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd == -1)
-    {
-        Log("Unable to create socket\n");
-        return FAILURE;
+    while (1) {
+        fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (fd == -1)
+        {
+            Log("Unable to create socket\n");
+            return FAILURE;
+        }
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
+        {
+            Log("Unable to set SO_REUSEADDR\n");
+            return FAILURE;
+        }
+        if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
+        {
+            Log("Unable to bind socket\n");
+            return FAILURE;
+        }
+        /* block until we've "accepted" a connection
+         * (see accept_udp_connection() for details)
+         */
+        if (accept_udp_connection(fd, AF_INET) == FAILURE) {
+            Log("Unable to accept UDP connection in init_udp4()\n");
+            return FAILURE;
+        }
+        pid = fork();
+        if (pid == -1) {
+            Log("Error on fork() in init_udp4()\n");
+            return FAILURE;
+        }
+        else if (pid == 0) {
+            /* child */
+            return fd;
+        }
+        else {
+            /* parent */
+            close(fd);
+        }
     }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
-        Log("Unable to set SO_REUSEADDR\n");
-        return FAILURE;
-    }
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
-        Log("Unable to bind socket\n");
-        return FAILURE;
-    }
-    return fd;
+    /* should never reach this */
+    return FAILURE;
 }
+
 /*
  * sets up a udp / ipv6 socket for listening on specified port on address specified in in_addr ia6
  */
-
 int init_udp6(unsigned short port, struct in6_addr * ia6)
 {
     int fd = -1;
     struct sockaddr_in6 my_addr;
     int one = 1;
+    int pid;
+
     memset(&my_addr, 0, sizeof(my_addr));
     my_addr.sin6_family = AF_INET6;
     my_addr.sin6_port = htons(port);
     memcpy(&my_addr.sin6_addr, (void *) ia6, sizeof(my_addr.sin6_addr));
 
-    fd = socket(AF_INET6, SOCK_DGRAM, 0);
-    if (fd == -1)
-    {
-        Log("Unable to create socket\n");
-        return FAILURE;
-    }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
-        Log("Unable to set SO_REUSEADDR\n");
-        return FAILURE;
-    }
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
-        Log("Unable to bind socket\n");
-        return FAILURE;
-    }
-    return fd;
+        fd = socket(AF_INET6, SOCK_DGRAM, 0);
+        if (fd == -1)
+        {
+            Log("Unable to create socket\n");
+            return FAILURE;
+        }
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
+        {
+            Log("Unable to set SO_REUSEADDR\n");
+            return FAILURE;
+        }
+        if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
+        {
+            Log("Unable to bind socket\n");
+            return FAILURE;
+        }
+        /* block until we've "accepted" a connection
+         * (see accept_udp_connection() for details)
+         */
+        if (accept_udp_connection(fd, AF_INET6) == FAILURE) {
+            Log("Unable to accept UDP connection in init_udp6()\n");
+            return FAILURE;
+        }
+        pid = fork();
+        if (pid == -1) {
+            Log("Error on fork() in init_udp6()\n");
+            return FAILURE;
+        }
+        else if (pid == 0) {
+            /* child */
+            return fd;
+        }
+        else {
+            /* parent */
+            close(fd);
+        }
+    /* should never reach this */
+    return FAILURE;
 }
 
 /* 
@@ -299,6 +379,73 @@ int accept_tcp_connection(int server_fd, int address_family)
     else
     {
     	return FAILURE;
+    }
+    set_nonblock(client_fd);
+    return client_fd;
+}
+
+/*
+ * accepts new UDP connection from the fd specified, socked should be bound.
+ * the existence of this function might seem mildly retarted. using TCP-like
+ * behavior with UDP is necessary since a general bi-directional "UDP pipe"
+ * (i.e., doesn't "care" who the client is) would be unable to return data
+ * received from the remote service.  this function will wait til a datagram
+ * is received, peek at the client address, and connect() the local socket
+ * to the remote client, ensuring that data later returned from the remote
+ * server can find its way back to the correct client.
+ */
+
+int accept_udp_connection(int client_fd, int address_family)
+{
+    struct sockaddr_in client_addr4;
+    struct sockaddr_in6 client_addr6;
+    socklen_t len = 0;
+    int num_bytes;
+    char recv_buf[2];
+
+    memset(&client_addr4, 0, sizeof(client_addr4));
+    memset(&client_addr6, 0, sizeof(client_addr6));
+    if (address_family == AF_INET)
+    {
+        len = sizeof(client_addr4);
+        /* this call to recvfrom() WILL block until we receive a UDP datagram.
+         * since the MSG_PEEK flag is used, the data will not be removed from 
+         * the queue, which will allow us to read() it and forward later on.
+         * we're essential replicating accept() from the TCP side of things.
+         * this will give us client_addr, which allows us to connect()
+         * the socket.
+         */
+        num_bytes = recvfrom(client_fd, &recv_buf, sizeof(recv_buf), MSG_PEEK, 
+            (struct sockaddr *) &client_addr4, &len);
+        if (num_bytes < 0) {
+            Log("Error with recvfrom() in accept_udp_connection(): %s\n", strerror(errno));
+            return FAILURE;
+        }
+        if (connect(client_fd, (struct sockaddr *)&client_addr4, sizeof(client_addr4)) != 0) {
+            Log("Unable to connect() UDP socket to client: %s\n", strerror(errno));
+            close(client_fd);
+            return FAILURE;
+        }
+    }
+    else if (address_family == AF_INET6)
+    {
+        len = sizeof(client_addr6);
+        /* same as above, but IPv6 this time. */
+        num_bytes = recvfrom(client_fd, &recv_buf, sizeof(recv_buf), MSG_PEEK, 
+            (struct sockaddr *) &client_addr6, &len);
+        if (num_bytes < 0) {
+            Log("Error with recvfrom() in accept_udp_connection(): %s\n", strerror(errno));
+            return FAILURE;
+        }
+        if (connect(client_fd, (struct sockaddr *)&client_addr6, sizeof(client_addr6)) != 0) {
+            Log("Unable to connect() UDP socket to client: %s\n", strerror(errno));
+            close(client_fd);
+            return FAILURE;
+        }
+    }
+    else
+    {
+        return FAILURE;
     }
     set_nonblock(client_fd);
     return client_fd;

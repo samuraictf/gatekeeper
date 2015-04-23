@@ -7,3 +7,6 @@ CFLAGS += -O0 -ggdb \
 
 all:
 	gcc $(CFLAGS) -o gatekeeper gatekeeper.c sockets.c
+
+clean:
+	rm -f gatekeeper *.o

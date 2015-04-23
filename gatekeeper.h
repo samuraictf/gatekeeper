@@ -35,7 +35,7 @@
 #define LOCAL 1
 #define REMOTE 0
 #define REMOTE_RAND_ENV 2
-#define RECVBUF_SIZE 1024
+#define RECVBUF_SIZE 4096
 
 /* Globals */
 int log_fd;
@@ -60,4 +60,5 @@ int init_udp6(unsigned short port, struct in6_addr * ia6);
 int connect_ipv4(int type, unsigned short port, struct in_addr * ia4);
 int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6);
 int accept_tcp_connection(int server_fd, int address_family);
+int accept_udp_connection(int client_fd, int address_family);
 #endif
