@@ -42,11 +42,184 @@ void usage(void)
     Log("      -a <optional alarm in seconds> \n");
     Log("      -e <optional randomize child environment> \n");
     Log("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0\n");
+    Log("      -D optional output extra debugging information\n");
+    Log("      -v optional enable verbose output\n");
     Log("      -f optional randomize file descriptors by opening and not closing /dev/urandom several times\n");
+    Log("      -R <optional path to text file of regexs to match traffic against>\n");
     Log("      -k <optional path to key file>\n\n");
     Log("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -l 10.0.0.2:2090\n");
     Log("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
     Log("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
+}
+
+/*
+ * copy_string(): returns a pointer to a copy of str
+ * returns:       a pointer to a string on success, NULL on error
+ */
+char *copy_string(const char *str)
+{
+	char *s;
+	
+	if (!str) {
+		return NULL;
+	}
+	s = malloc(strlen(str) + 1);
+	if (!s) {
+		return NULL;
+	}
+	strcpy(s, str);
+	
+	return s;
+}
+
+/* 
+ * list_add(): adds a value to the end of a singly linked list
+ * returns:    -1 on error, 0 on success
+ * notes:      value must point to space allocated on the heap
+ */
+int list_add(pcre *re, pcre_list_t **head) {
+	pcre_list_t *i = NULL, *ptr = NULL;
+	
+	/* does head even point to anything? */
+	if (head == NULL) {
+		return -1;
+	}
+	
+	i = (pcre_list_t *)malloc(sizeof(pcre_list_t));
+	if (!i) {
+		return -1;
+	}
+	i->re = re;
+	i->next = NULL;
+	
+	/* is the list currently empty?  if so, the new node is the first
+	   and only element, assign it to head and return */
+	if (*head == NULL) {
+		*head = i;
+		return 0;
+	}
+	
+	ptr = *head;
+	while (ptr) {
+		/* are we at the end of the list?  if so, insert new node
+		   at the end */
+		if (ptr->next == NULL) {
+			ptr->next = i;
+			break;
+		}
+		ptr = ptr->next;
+	}
+	
+	return 0;
+}
+
+/*
+ * free_list(): iterates a singly linked list, free()'ing the value,
+ *              then the node itself.
+ * returns:     none
+ */
+void free_list(pcre_list_t *list)
+{
+	pcre_list_t *ptr, *tmp;
+	
+	if (list == NULL) {
+		return;
+	}
+	
+	ptr = list;
+	while (ptr) {
+		tmp = ptr->next;
+		if (ptr->re)
+			free(ptr->re);
+		free(ptr);
+		ptr = tmp;
+	}
+}
+
+int parse_pcre_inputs(const char *fname)
+{
+    FILE *f;
+    char line[1024];
+    pcre *re;
+    const char *error;
+    int erroffset;
+    
+    if ((f = fopen(fname, "r")) == NULL) {
+        Log("Error opening %s for reading: %s\n", fname, strerror(errno));
+        return FAILURE;
+    }
+    if (verbose) {
+        Log("Parsing pcre inputs from %s... ", fname);
+    }
+    while (fgets(line, sizeof(line), f) != NULL) {
+        re = pcre_compile(line, 0, &error, &erroffset, NULL);
+        if (re == NULL) {
+            /* compilation failed, bail out */
+            Log("PCRE compilation failed on line %d at offset %d: %s\n", 
+                (num_pcre_inputs+1), erroffset, error);
+            return FAILURE;
+        }
+        /* compilation succeeded, add to linked list */
+        list_add(re, &pcre_inputs);
+        num_pcre_inputs++;
+    }
+    fclose(f);
+    if (verbose) {
+        Log("Done.\nParsed %d pcre inputs.\n", num_pcre_inputs);
+    }
+    
+    return 0;
+}
+
+int check_for_match(char *buf, int num_bytes)
+{
+    int rc;
+    pcre_list_t *ptr;
+    
+    if (pcre_inputs) {
+		for (ptr = pcre_inputs; ptr; ptr = ptr->next) {
+            /* check each compiled regex against the buffer */
+            rc = pcre_exec(ptr->re, NULL, buf, num_bytes, 0, 0, NULL, 0);
+            if (rc < 0) {
+                /* either there was no match or an error occured */
+                if (debugging) {
+                    Log("pcre_exec() returned %d: ", rc);
+                    switch (rc) {
+                        case PCRE_ERROR_NOMATCH:
+                            printf("String did not match the pattern\n");
+                            break;
+                        case PCRE_ERROR_NULL:
+                            printf("Something was null\n");
+                            break;
+                        case PCRE_ERROR_BADOPTION:
+                            printf("A bad option was passed\n");
+                            break;
+                        case PCRE_ERROR_BADMAGIC:
+                            printf("Magic number bad (compiled re corrupt?)\n");
+                            break;
+                        case PCRE_ERROR_UNKNOWN_NODE:
+                            printf("Something kooky in the compiled re\n");
+                            break;
+                        case PCRE_ERROR_NOMEMORY:
+                            printf("Ran out of memory\n");
+                            break;
+                        default:
+                            printf("Unknown error\n");
+                            break;
+                    }
+                }
+                continue;
+            }
+            else {
+                if (verbose) {
+                    Log("Found matching pcre in buffer.\n");
+                }
+                return 1;
+            }
+		}
+	}
+    
+    return 0;
 }
 
 /*
@@ -65,11 +238,11 @@ void usage(void)
 
 int main(int argc, char * argv[])
 {
-    char * keyfile        = NULL;
     char * listenstr      = NULL;
     char * redirectstr    = NULL;
     char * logsrvstr      = NULL;
     char * capsrvstr      = NULL;
+    char * keyfile        = NULL;
     int c                 = -1;
     int f                 = -1;
     int rand_env          = 0;
@@ -84,10 +257,15 @@ int main(int argc, char * argv[])
     fd_set readfds;
     int highest_fd;
     int num_bytes;
-    char *recvbuf[RECVBUF_SIZE];
+    char recvbuf[RECVBUF_SIZE];
+    char * regex_fname    = NULL;
 
     /* initialize globals*/
     log_fd = -1;
+    num_pcre_inputs = 0;
+    pcre_inputs = NULL;
+    debugging = 0;
+    verbose = 0;
 
     memset(&log_addr, 0, sizeof(log_addr));
     memset(&rl, 0, sizeof(rl));
@@ -120,7 +298,7 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
-    while ((c=getopt(argc, argv, "hl:r:k:o:c:a:dfe")) != -1)
+    while ((c=getopt(argc, argv, "hvDR:l:r:k:o:c:a:dfe")) != -1)
     {
         switch (c)
         {
@@ -152,6 +330,12 @@ int main(int argc, char * argv[])
         case 'e':
             rand_env = 1;
             break;
+        case 'v':
+            verbose = 1;
+            break;
+        case 'D':
+            debugging = 1;
+            break;
         case 'd':
             /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
              * umask will render files unusable without a chmod first
@@ -166,6 +350,9 @@ int main(int argc, char * argv[])
 				open("/dev/urandom", O_RDONLY, NULL);
 			}
         	break;
+        case 'R':
+            regex_fname = copy_string(optarg);
+            break;
         case '?':
             usage();
             if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt)
@@ -189,6 +376,14 @@ int main(int argc, char * argv[])
     {
         Log("Argument -r (redirect string) is required\n");
         goto cleanup;
+    }
+    
+    /* if a regex file was specified, parse it */
+    if (regex_fname != NULL) {
+        if (parse_pcre_inputs(regex_fname) == FAILURE) {
+            Log("Failed to parse all pcre inputs, bailing out...\n");
+            goto cleanup;
+        }
     }
 
     /* setup logging server globals */
@@ -241,6 +436,11 @@ int main(int argc, char * argv[])
                 goto cleanup;
             }
             /* here's where we run checks on recvbuf to decide yay/nay on forwarding traffic */
+            if (num_pcre_inputs > 0) {
+                if (check_for_match(recvbuf, num_bytes) != 0) {
+                    /* we found a match.  now what do we do? */
+                }
+            }
 
             /* now pump out remote_fd_w */
             if (write(remote_fd_w, recvbuf, num_bytes) != num_bytes) {
@@ -254,7 +454,12 @@ int main(int argc, char * argv[])
                 goto cleanup;
             }
             /* here's where we run checks on recvbuf to decide yay/nay on forwarding traffic */
-
+            if (num_pcre_inputs > 0) {
+                if (check_for_match(recvbuf, num_bytes) != 0) {
+                    /* we found a match.  now what do we do? */
+                }
+            }
+            
             /* now pump out listen_fd_w */
             if (write(listen_fd_w, recvbuf, num_bytes) != num_bytes) {
                 Log("Huh? Couldn't write all available data to listen_fd...\n");
@@ -275,6 +480,10 @@ cleanup:
         close(remote_fd_w);
     if (log_fd != -1)
         close(log_fd);
+    if (regex_fname)
+        free(regex_fname);
+    free_list(pcre_inputs);
+    
 
     return SUCCESS;
 }

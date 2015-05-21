@@ -28,6 +28,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <pcre.h>
 
 /* Defines */
 #define FAILURE -1
@@ -37,9 +38,20 @@
 #define REMOTE_RAND_ENV 2
 #define RECVBUF_SIZE 4096
 
+/* typedefs / structs */
+typedef struct pcre_list pcre_list_t;
+struct pcre_list {
+	pcre_list_t *next;
+	pcre *re;
+};
+
 /* Globals */
 int log_fd;
 struct sockaddr_in log_addr;
+pcre_list_t *pcre_inputs;
+int num_pcre_inputs;
+int debugging;
+int verbose;
 
 /* Prototypes */
 void usage(void);
