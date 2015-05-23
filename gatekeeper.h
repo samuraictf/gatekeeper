@@ -29,6 +29,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <pcre.h>
+#include "ringbuffer.h"
 
 /* Defines */
 #define FAILURE -1

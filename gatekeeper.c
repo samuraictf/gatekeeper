@@ -52,26 +52,6 @@ void usage(void)
     Log("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
 }
 
-/*
- * copy_string(): returns a pointer to a copy of str
- * returns:       a pointer to a string on success, NULL on error
- */
-char *copy_string(const char *str)
-{
-	char *s;
-	
-	if (!str) {
-		return NULL;
-	}
-	s = malloc(strlen(str) + 1);
-	if (!s) {
-		return NULL;
-	}
-	strcpy(s, str);
-	
-	return s;
-}
-
 /* 
  * list_add(): adds a value to the end of a singly linked list
  * returns:    -1 on error, 0 on success
@@ -136,6 +116,12 @@ void free_list(pcre_list_t *list)
 	}
 }
 
+/*
+ * take supplied filename and read it line-by-line, and compile
+ * the line as a pcre.  compiled pcres are added to a singly-linked
+ * list that we'll use later to match traffic against
+ */
+
 int parse_pcre_inputs(const char *fname)
 {
     FILE *f;
@@ -171,13 +157,19 @@ int parse_pcre_inputs(const char *fname)
     return 0;
 }
 
+/*
+ * iterates the list of compiled pcres, checking for any matches
+ * against the supplied buffer.  returns 1 on the first match.
+ * returns 0 if no matches are found.
+ */
+
 int check_for_match(char *buf, int num_bytes)
 {
     int rc;
     pcre_list_t *ptr;
     
     if (pcre_inputs) {
-		for (ptr = pcre_inputs; ptr; ptr = ptr->next) {
+        for (ptr = pcre_inputs; ptr; ptr = ptr->next) {
             /* check each compiled regex against the buffer */
             rc = pcre_exec(ptr->re, NULL, buf, num_bytes, 0, 0, NULL, 0);
             if (rc < 0) {
@@ -186,25 +178,25 @@ int check_for_match(char *buf, int num_bytes)
                     Log("pcre_exec() returned %d: ", rc);
                     switch (rc) {
                         case PCRE_ERROR_NOMATCH:
-                            printf("String did not match the pattern\n");
+                            Log("String did not match the pattern\n");
                             break;
                         case PCRE_ERROR_NULL:
-                            printf("Something was null\n");
+                            Log("Something was null\n");
                             break;
                         case PCRE_ERROR_BADOPTION:
-                            printf("A bad option was passed\n");
+                            Log("A bad option was passed\n");
                             break;
                         case PCRE_ERROR_BADMAGIC:
-                            printf("Magic number bad (compiled re corrupt?)\n");
+                            Log("Magic number bad (compiled re corrupt?)\n");
                             break;
                         case PCRE_ERROR_UNKNOWN_NODE:
-                            printf("Something kooky in the compiled re\n");
+                            Log("Something kooky in the compiled re\n");
                             break;
                         case PCRE_ERROR_NOMEMORY:
-                            printf("Ran out of memory\n");
+                            Log("Ran out of memory\n");
                             break;
                         default:
-                            printf("Unknown error\n");
+                            Log("Unknown error\n");
                             break;
                     }
                 }
@@ -257,8 +249,11 @@ int main(int argc, char * argv[])
     fd_set readfds;
     int highest_fd;
     int num_bytes;
+    int ringbuf_cnt;
     char recvbuf[RECVBUF_SIZE];
+    char pcrebuf[RECVBUF_SIZE];
     char * regex_fname    = NULL;
+    ringbuffer_t * recv_ringbuf = NULL;
 
     /* initialize globals*/
     log_fd = -1;
@@ -351,7 +346,7 @@ int main(int argc, char * argv[])
 			}
         	break;
         case 'R':
-            regex_fname = copy_string(optarg);
+            regex_fname = strdup(optarg);
             break;
         case '?':
             usage();
@@ -401,6 +396,11 @@ int main(int argc, char * argv[])
     {
         alarm(alarmval);
     }
+    
+    /* create the recv ring buffer if we have pcre inputs to match against*/
+    if (num_pcre_inputs > 0) {
+        recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
+    }
 
     /* setup local listener fd's, will block to accept connections */
     if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE)
@@ -430,22 +430,11 @@ int main(int argc, char * argv[])
             Log("select() threw an error: %s\n", strerror(errno));
             goto cleanup;
         }
+        /* read in data from the socket that is ready */
         if (FD_ISSET(listen_fd_r, &readfds)) {
             if ((num_bytes = read(listen_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
                 Log("Got EOF on listen_fd_r\n");
                 goto cleanup;
-            }
-            /* here's where we run checks on recvbuf to decide yay/nay on forwarding traffic */
-            if (num_pcre_inputs > 0) {
-                if (check_for_match(recvbuf, num_bytes) != 0) {
-                    /* we found a match.  now what do we do? */
-                }
-            }
-
-            /* now pump out remote_fd_w */
-            if (write(remote_fd_w, recvbuf, num_bytes) != num_bytes) {
-                Log("Huh? Couldn't write all available data to remote_fd...\n");
-                /* fail here? */
             }
         }
         else if (FD_ISSET(remote_fd_r, &readfds)) {
@@ -453,13 +442,34 @@ int main(int argc, char * argv[])
                 Log("Got EOF on remote_fd_r\n");
                 goto cleanup;
             }
-            /* here's where we run checks on recvbuf to decide yay/nay on forwarding traffic */
-            if (num_pcre_inputs > 0) {
-                if (check_for_match(recvbuf, num_bytes) != 0) {
-                    /* we found a match.  now what do we do? */
-                }
+        }
+        /* are we doing pcre matching? */
+        if (num_pcre_inputs > 0) {
+            /* we have data.  add it to the ring buffer */
+            if (ringbuffer_write(recv_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
+                Log("Weird, could not write all received data to the ring buffer.  Bailing out...\n");
+                goto cleanup;
             }
-            
+            /* here's where we run checks on ringbuf to decide yay/nay on forwarding traffic.
+             * unfortunately it's not easy to do pcre matching on a segmented buffer.  the only
+             * real option is to copy ringbuf's (possibly) segmented contents to a contiguous
+             * buffer and feed that to check_for_match().  this is computationally more expensive
+             * than I'd like it to be, but right now that's the price we pay for better pcre
+             * matching across multiple read() calls */
+            ringbuf_cnt = ringbuffer_peek(recv_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
+            if (check_for_match(pcrebuf, ringbuf_cnt) != 0) {
+                /* we found a match.  now what do we do?  die?  flip bits? */
+            }
+        }
+        /* write data back out to opposite socket */
+        if (FD_ISSET(listen_fd_r, &readfds)) {
+            /* now pump out remote_fd_w */
+            if (write(remote_fd_w, recvbuf, num_bytes) != num_bytes) {
+                Log("Huh? Couldn't write all available data to remote_fd...\n");
+                /* fail here? */
+            }
+        }
+        else if (FD_ISSET(remote_fd_r, &readfds)) {
             /* now pump out listen_fd_w */
             if (write(listen_fd_w, recvbuf, num_bytes) != num_bytes) {
                 Log("Huh? Couldn't write all available data to listen_fd...\n");
@@ -482,6 +492,8 @@ cleanup:
         close(log_fd);
     if (regex_fname)
         free(regex_fname);
+    if (recv_ringbuf)
+        ringbuffer_free(recv_ringbuf);
     free_list(pcre_inputs);
     
 

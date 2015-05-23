@@ -8,7 +8,7 @@ CFLAGS += -O0 -ggdb \
 LDFLAGS += -lpcre
 
 all:
-	gcc $(CFLAGS) -o gatekeeper gatekeeper.c sockets.c $(LDFLAGS)
+	gcc $(CFLAGS) -o gatekeeper gatekeeper.c sockets.c ringbuffer.c $(LDFLAGS)
 
 clean:
 	rm -f gatekeeper *.o
