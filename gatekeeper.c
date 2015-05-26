@@ -40,6 +40,7 @@ void usage(void)
     Log("      -o <optional log server string> \n");
     Log("      -c <optional capture host string> \n");
     Log("      -a <optional alarm in seconds> \n");
+    Log("      -t <optional chroot to this directory> \n");
     Log("      -e <optional randomize child environment> \n");
     Log("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0\n");
     Log("      -f optional randomize file descriptors by opening and not closing /dev/urandom several times\n");
@@ -117,7 +118,7 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
-    while ((c=getopt(argc, argv, "hl:r:k:o:c:a:dfe")) != -1)
+    while ((c=getopt(argc, argv, "hl:r:k:o:c:a:t:dfe")) != -1)
     {
         switch (c)
         {
@@ -156,6 +157,11 @@ int main(int argc, char * argv[])
 			umask(0);
 			setrlimit(RLIMIT_FSIZE, &rl);
             break;
+        case 't':
+        	/* we don't need root to chroot if we unshare the user namespace */
+        	unshare(CLONE_NEWUSER);
+        	chroot(optarg);
+        	break;
         case 'f':
             /* this will cause later opens after exec to have unexpected fd numbers, we don't close these */
 			for (i = 0; i < (unsigned int) ((rand() % 100) + 1); i++)
@@ -282,7 +288,8 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     char * args_start = NULL;
     unsigned int arg_count = 0;
     unsigned int i = 0;
-    unsigned int arg_len = 0;
+    char * tmp = NULL;
+    char * last_arg = NULL;
     char * arg = NULL;
     char ** envp = NULL;
     char ** argv = NULL;
@@ -317,35 +324,42 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     		{
     			/* child process */
     			args_start = strchr(instr, ':');
-    			if (args_start == NULL)
+    			if (args_start == NULL && *args_start++ != '\0')
     			{
-    				Log("Invalid remote string, stdio specified without a : followed by a program to run. i.e. stdio:/bin/cat\n");
+    				Log("Invalid remote string, stdio specified without a ':' followed by a program to run. i.e. \"stdio:/bin/cat foo\"\n");
     				return FAILURE;
     			}
 
+    			/* build up an argv */
     			/* count the number of spaces for arguments */
     			for (arg_count = 0; *instr; instr++)
     			{
     				if (*instr == ' ')
     				{
-    						arg_count++;
+    					arg_count++;
     				}
     			}
+
+    			/* create arg_count +2 for argv[0] and NULL termination */
     			argv = calloc(sizeof(void *) * (arg_count + 2), 1);
     			if (argv==NULL)
-    				return FAILURE;
-
-    			arg = args_start;
-    			for (i = 0; i <= arg_count; i++)
     			{
-    				for (arg_len = 0; arg[arg_len] && arg[arg_len]!=' '; arg_len++);
-    				argv[i] = calloc(arg_len+1, 1);
-
-    				if (argv[i] == NULL)
-    					return FAILURE;
-
-    				memcpy(argv[i], arg-arg_len, arg_len);
+    				return FAILURE;
     			}
+
+    			last_arg = args_start;
+    			tmp = args_start;
+    			for (i=0; i<arg_count+1, *tmp; tmp++)
+    			{
+    				if (*tmp == ' ')
+    				{
+    					*tmp = '\0';
+    					argv[i] = last_arg;
+    					last_arg = tmp+1;
+    					i++;
+    				}
+    			}
+    			argv[i]=last_arg;
 
     			if (local == REMOTE_RAND_ENV)
     			{

@@ -1,5 +1,6 @@
 #ifndef _GATEKEEPER_H
 #define _GATEKEEPER_H
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,8 @@
 #include <ctype.h>
 #include <grp.h>
 #include <ifaddrs.h>
+#include <sched.h>
+#include <time.h>
 
 #ifdef _LINUX
 #include <sys/inotify.h>
@@ -27,7 +30,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <time.h>
+
 
 /* Defines */
 #define FAILURE -1
