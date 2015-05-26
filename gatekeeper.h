@@ -26,11 +26,13 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-#include <sys/types.h>
+#include <sys/time.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
+#include <time.h>
+#include <pcre.h>
+#include "ringbuffer.h"
 
 /* Defines */
 #define FAILURE -1
@@ -38,10 +40,22 @@
 #define LOCAL 1
 #define REMOTE 0
 #define REMOTE_RAND_ENV 2
+#define RECVBUF_SIZE 4096
+
+/* typedefs / structs */
+typedef struct pcre_list pcre_list_t;
+struct pcre_list {
+    pcre_list_t *next;
+    pcre *re;
+};
 
 /* Globals */
 int log_fd;
 struct sockaddr_in log_addr;
+pcre_list_t *pcre_inputs;
+int num_pcre_inputs;
+int debugging;
+int verbose;
 
 /* Prototypes */
 void usage(void);
@@ -59,5 +73,8 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock);
 int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock);
 int init_udp4(unsigned short port, struct in_addr * ia4);
 int init_udp6(unsigned short port, struct in6_addr * ia6);
+int connect_ipv4(int type, unsigned short port, struct in_addr * ia4);
+int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6);
 int accept_tcp_connection(int server_fd, int address_family);
+int accept_udp_connection(int client_fd, int address_family);
 #endif

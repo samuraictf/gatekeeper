@@ -5,5 +5,10 @@ CFLAGS += -O0 -ggdb \
 	-Wcast-align -Wpointer-arith -Wmissing-noreturn -Wmissing-format-attribute -Wredundant-decls \
 	-Wunreachable-code -Winline -Wfloat-equal
 
+LDFLAGS += -lpcre
+
 all:
-	gcc $(CFLAGS) -o gatekeeper gatekeeper.c sockets.c
+	gcc $(CFLAGS) -o gatekeeper gatekeeper.c sockets.c ringbuffer.c $(LDFLAGS)
+
+clean:
+	rm -f gatekeeper *.o
