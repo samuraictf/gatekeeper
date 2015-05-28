@@ -540,6 +540,8 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     char str[INET6_ADDRSTRLEN];
     int fd_r = -1;
     int fd_w = -1;
+    int in_pipe[2];     /* gatekeeper -> remote proc */
+    int out_pipe[2];    /* remote proc -> gatekeeper */
     pid_t pid = 0;
     char * args_start = NULL;
     unsigned int arg_count = 0;
@@ -575,11 +577,20 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         }
         else if (local == REMOTE || local == REMOTE_RAND_ENV)
         {
+            /* set up pipes. pipe names are from the child (remote) process perspective */
+            pipe(in_pipe);
+            pipe(out_pipe);
+
             pid = fork();
+            if (pid == -1) {
+                /* fork() failed.  this can happen. */
+                Log("fork() failed: %s\n", strerror(errno));
+                return FAILURE;
+            }
             if (pid == 0)
             {
                 /* child process */
-                args_start = strchr(instr, ':');
+                args_start = (strchr(instr, ':')+1);
                 if (args_start == NULL && *args_start++ != '\0')
                 {
                     Log("Invalid remote string, stdio specified without a ':' followed by a program to run. i.e. \"stdio:/bin/cat foo\"\n");
@@ -617,13 +628,45 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                 }
                 argv[i]=last_arg;
 
+                /* clean up pipes by closing file descriptors we won't use */
+                close(in_pipe[1]);
+                close(out_pipe[0]);
+                
+                /* dup stdio to proper pipes */
+                dup2(in_pipe[0], 0);
+                dup2(out_pipe[1], 1);
+                dup2(out_pipe[1], 2);
+                
                 if (local == REMOTE_RAND_ENV)
                 {
                     envp = build_rand_envp();
                     /*argv = getenv("GATEKEEPER_EXEC_ARGS");
                     execve()*/
                 }
+                else {
+                    /* exec program using environment of parent for now. */
+                    if (verbose) {
+                        Log("executing ");
+                        for (i = 0; i <= arg_count; i++) {
+                            Log("%s ", argv[i]);
+                        }
+                        Log("\n");
+                    }
+                    execve(argv[0], argv, environ);
+                    /* should never get here */
+                    Log("execve() of %s failed: %s\n", argv[0], strerror(errno));
+                    return FAILURE;
+                }
             }
+            /* parent process */
+            
+            /* clean up pipes by closing file descriptors we won't use */
+            close(in_pipe[0]);
+            close(out_pipe[1]);
+            
+            /* r/w file descriptors are the parent end of the r/w pipes */
+            fd_r = out_pipe[0];
+            fd_w = in_pipe[1];
         }
     }
     else if (strncmp("tcpipv4", instr, strlen("tcpipv4")) == 0)
