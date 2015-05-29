@@ -45,9 +45,17 @@
 /* typedefs / structs */
 typedef struct pcre_list pcre_list_t;
 struct pcre_list {
-    pcre_list_t *next;
-    pcre *re;
+	pcre_list_t *next;
+	pcre *re;
 };
+
+typedef struct _interface_ip_list {
+	void * next;
+	char type;
+	char addr[64];
+	struct in_addr ia4;
+	struct in6_addr ia6;
+} interface_ip_list, *pinterface_ip_list;
 
 /* Globals */
 int log_fd;
@@ -56,6 +64,7 @@ pcre_list_t *pcre_inputs;
 int num_pcre_inputs;
 int debugging;
 int verbose;
+pinterface_ip_list if_list;
 
 /* Prototypes */
 void usage(void);
@@ -77,4 +86,9 @@ int connect_ipv4(int type, unsigned short port, struct in_addr * ia4);
 int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6);
 int accept_tcp_connection(int server_fd, int address_family);
 int accept_udp_connection(int client_fd, int address_family);
+
+int list_add(pcre *re, pcre_list_t **head);
+void free_list(pcre_list_t *list);
+int parse_pcre_inputs(const char *fname);
+int check_for_match(char *buf, int num_bytes);
 #endif

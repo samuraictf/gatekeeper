@@ -8,14 +8,12 @@ void set_nonblock(int fd)
     int fl = -1;
     int x = -1;
     fl = fcntl(fd, F_GETFL, 0);
-    if (fl < 0)
-    {
+    if (fl < 0) {
         Log("fcntl F_GETFL: FD %d: %s\n", fd, strerror(errno));
         return;
     }
     x = fcntl(fd, F_SETFL, fl | O_NONBLOCK);
-    if (x < 0)
-    {
+    if (x < 0) {
         Log("fcntl F_SETFL: FD %d: %s\n", fd, strerror(errno));
         return;
     }
@@ -29,17 +27,13 @@ int is_nonblock(int fd)
 {
     int fl = -1;
     fl = fcntl(fd, F_GETFL, 0);
-    if (fl < 0)
-    {
+    if (fl < 0) {
         Log("fcntl F_GETFL: FD %d: %s\n", fd, strerror(errno));
         return 0;
     }
-    if (fl & O_NONBLOCK)
-    {
+    if (fl & O_NONBLOCK) {
         return 1;
-    }
-    else
-    {
+    } else {
         return 0;
     }
 }
@@ -64,23 +58,19 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
     memcpy(&my_addr.sin_addr, (void *) ia4, sizeof(my_addr.sin_addr));
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd == -1)
-    {
+    if (fd == -1) {
         Log("Unable to create socket\n");
         return FAILURE;
     }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
         Log("Unable to set SO_REUSEADDR\n");
         return FAILURE;
     }
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
+    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1) {
         Log("Unable to bind socket\n");
         return FAILURE;
     }
-    if (listen(fd, 40) == -1)
-    {
+    if (listen(fd, 40) == -1) {
         Log("Unable to listen on socket\n");
         return FAILURE;
     }
@@ -90,20 +80,17 @@ int init_tcp4(unsigned short port, struct in_addr * ia4, int * server_sock)
         if (pid == -1) {
             Log("Error on fork() in init_tcp4()\n");
             return FAILURE;
-        }
-        else if (pid == 0) {
+        } else if (pid == 0) {
             /* child */
             set_nonblock(client_sock);
             /* not sure of the point of returning server_sock */
             if (server_sock != NULL) {
                 *server_sock = fd;
-            }
-            else {
+            } else {
                 close(fd);
             }
             return client_sock;
-        }
-        else {
+        } else {
             /* parent */
             close(client_sock);
         }
@@ -131,18 +118,15 @@ int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock)
     memcpy(&my_addr.sin6_addr, (void *) ia6, sizeof(my_addr.sin6_addr));
 
     fd = socket(AF_INET6, SOCK_STREAM, 0);
-    if (fd == -1)
-    {
+    if (fd == -1) {
         Log("Unable to create socket\n");
         return FAILURE;
     }
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-    {
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
         Log("Unable to set SO_REUSEADDR\n");
         return FAILURE;
     }
-    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-    {
+    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1) {
         Log("Unable to bind socket\n");
         return FAILURE;
     }
@@ -152,20 +136,17 @@ int init_tcp6(unsigned short port, struct in6_addr * ia6, int * server_sock)
         if (pid == -1) {
             Log("Error on fork() in init_tcp6()\n");
             return FAILURE;
-        }
-        else if (pid == 0) {
+        } else if (pid == 0) {
             /* child */
             set_nonblock(client_sock);
             /* not sure of the point of returning server_sock */
             if (server_sock != NULL) {
                 *server_sock = fd;
-            }
-            else {
+            } else {
                 close(fd);
             }
             return client_sock;
-        }
-        else {
+        } else {
             /* parent */
             close(client_sock);
         }
@@ -191,18 +172,15 @@ int init_udp4(unsigned short port, struct in_addr * ia4)
 
     while (1) {
         fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if (fd == -1)
-        {
+        if (fd == -1) {
             Log("Unable to create socket\n");
             return FAILURE;
         }
-        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-        {
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
             Log("Unable to set SO_REUSEADDR\n");
             return FAILURE;
         }
-        if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-        {
+        if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1) {
             Log("Unable to bind socket\n");
             return FAILURE;
         }
@@ -217,12 +195,10 @@ int init_udp4(unsigned short port, struct in_addr * ia4)
         if (pid == -1) {
             Log("Error on fork() in init_udp4()\n");
             return FAILURE;
-        }
-        else if (pid == 0) {
+        } else if (pid == 0) {
             /* child */
             return fd;
-        }
-        else {
+        } else {
             /* parent */
             close(fd);
         }
@@ -246,48 +222,43 @@ int init_udp6(unsigned short port, struct in6_addr * ia6)
     my_addr.sin6_port = htons(port);
     memcpy(&my_addr.sin6_addr, (void *) ia6, sizeof(my_addr.sin6_addr));
 
-        fd = socket(AF_INET6, SOCK_DGRAM, 0);
-        if (fd == -1)
-        {
-            Log("Unable to create socket\n");
-            return FAILURE;
-        }
-        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1)
-        {
-            Log("Unable to set SO_REUSEADDR\n");
-            return FAILURE;
-        }
-        if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1)
-        {
-            Log("Unable to bind socket\n");
-            return FAILURE;
-        }
-        /* block until we've "accepted" a connection
-         * (see accept_udp_connection() for details)
-         */
-        if (accept_udp_connection(fd, AF_INET6) == FAILURE) {
-            Log("Unable to accept UDP connection in init_udp6()\n");
-            return FAILURE;
-        }
-        pid = fork();
-        if (pid == -1) {
-            Log("Error on fork() in init_udp6()\n");
-            return FAILURE;
-        }
-        else if (pid == 0) {
-            /* child */
-            return fd;
-        }
-        else {
-            /* parent */
-            close(fd);
-        }
+    fd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (fd == -1) {
+        Log("Unable to create socket\n");
+        return FAILURE;
+    }
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
+        Log("Unable to set SO_REUSEADDR\n");
+        return FAILURE;
+    }
+    if (bind(fd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1) {
+        Log("Unable to bind socket\n");
+        return FAILURE;
+    }
+    /* block until we've "accepted" a connection
+     * (see accept_udp_connection() for details)
+     */
+    if (accept_udp_connection(fd, AF_INET6) == FAILURE) {
+        Log("Unable to accept UDP connection in init_udp6()\n");
+        return FAILURE;
+    }
+    pid = fork();
+    if (pid == -1) {
+        Log("Error on fork() in init_udp6()\n");
+        return FAILURE;
+    } else if (pid == 0) {
+        /* child */
+        return fd;
+    } else {
+        /* parent */
+        close(fd);
+    }
     /* should never reach this */
     return FAILURE;
 }
 
-/* 
- * connects and returns an ipv4 socket of any type on specified port 
+/*
+ * connects and returns an ipv4 socket of any type on specified port
  * on address specified in in_addr ia4
  */
 
@@ -302,8 +273,7 @@ int connect_ipv4(int type, unsigned short port, struct in_addr * ia4)
     memcpy(&addr.sin_addr, (void *) ia4, sizeof(addr.sin_addr));
 
     fd = socket(AF_INET, type, 0);
-    if (fd == -1)
-    {
+    if (fd == -1) {
         Log("Unable to create socket\n");
         return FAILURE;
     }
@@ -314,12 +284,12 @@ int connect_ipv4(int type, unsigned short port, struct in_addr * ia4)
     }
     /* set non-blocking AFTER connect() call to avoid EINPROGRESS error */
     set_nonblock(fd);
-    
-    return fd;   
+
+    return fd;
 }
 
-/* 
- * connects and returns an ipv6 socket of any type on specified port 
+/*
+ * connects and returns an ipv6 socket of any type on specified port
  * on address specified in in6_addr ia6
  */
 
@@ -333,8 +303,7 @@ int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6)
     memcpy(&addr.sin6_addr, (void *) ia6, sizeof(addr.sin6_addr));
 
     fd = socket(AF_INET6, type, 0);
-    if (fd == -1)
-    {
+    if (fd == -1) {
         Log("Unable to create socket\n");
         return FAILURE;
     }
@@ -356,29 +325,23 @@ int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6)
 
 int accept_tcp_connection(int server_fd, int address_family)
 {
-	struct sockaddr_in client_addr4;
-	struct sockaddr_in6 client_addr6;
-	socklen_t len = 0;
+    struct sockaddr_in client_addr4;
+    struct sockaddr_in6 client_addr6;
+    socklen_t len = 0;
     int client_fd = -1;
     memset(&client_addr4, 0, sizeof(client_addr4));
     memset(&client_addr6, 0, sizeof(client_addr6));
-    if (0 != listen(server_fd, 20))
-    {
-    	return FAILURE;
+    if (0 != listen(server_fd, 20)) {
+        return FAILURE;
     }
-    if (address_family == AF_INET)
-    {
-    	len = sizeof(client_addr4);
-    	client_fd = accept(server_fd, (struct sockaddr *) &client_addr4, &len);
-    }
-    else if (address_family == AF_INET6)
-    {
-    	len = sizeof(client_addr6);
-    	client_fd = accept(server_fd, (struct sockaddr *) &client_addr6, &len);
-    }
-    else
-    {
-    	return FAILURE;
+    if (address_family == AF_INET) {
+        len = sizeof(client_addr4);
+        client_fd = accept(server_fd, (struct sockaddr *) &client_addr4, &len);
+    } else if (address_family == AF_INET6) {
+        len = sizeof(client_addr6);
+        client_fd = accept(server_fd, (struct sockaddr *) &client_addr6, &len);
+    } else {
+        return FAILURE;
     }
     set_nonblock(client_fd);
     return client_fd;
@@ -405,18 +368,17 @@ int accept_udp_connection(int client_fd, int address_family)
 
     memset(&client_addr4, 0, sizeof(client_addr4));
     memset(&client_addr6, 0, sizeof(client_addr6));
-    if (address_family == AF_INET)
-    {
+    if (address_family == AF_INET) {
         len = sizeof(client_addr4);
         /* this call to recvfrom() WILL block until we receive a UDP datagram.
-         * since the MSG_PEEK flag is used, the data will not be removed from 
+         * since the MSG_PEEK flag is used, the data will not be removed from
          * the queue, which will allow us to read() it and forward later on.
          * we're essential replicating accept() from the TCP side of things.
          * this will give us client_addr, which allows us to connect()
          * the socket.
          */
-        num_bytes = recvfrom(client_fd, &recv_buf, sizeof(recv_buf), MSG_PEEK, 
-            (struct sockaddr *) &client_addr4, &len);
+        num_bytes = recvfrom(client_fd, &recv_buf, sizeof(recv_buf), MSG_PEEK,
+                             (struct sockaddr *) &client_addr4, &len);
         if (num_bytes < 0) {
             Log("Error with recvfrom() in accept_udp_connection(): %s\n", strerror(errno));
             return FAILURE;
@@ -426,13 +388,11 @@ int accept_udp_connection(int client_fd, int address_family)
             close(client_fd);
             return FAILURE;
         }
-    }
-    else if (address_family == AF_INET6)
-    {
+    } else if (address_family == AF_INET6) {
         len = sizeof(client_addr6);
         /* same as above, but IPv6 this time. */
-        num_bytes = recvfrom(client_fd, &recv_buf, sizeof(recv_buf), MSG_PEEK, 
-            (struct sockaddr *) &client_addr6, &len);
+        num_bytes = recvfrom(client_fd, &recv_buf, sizeof(recv_buf), MSG_PEEK,
+                             (struct sockaddr *) &client_addr6, &len);
         if (num_bytes < 0) {
             Log("Error with recvfrom() in accept_udp_connection(): %s\n", strerror(errno));
             return FAILURE;
@@ -442,11 +402,76 @@ int accept_udp_connection(int client_fd, int address_family)
             close(client_fd);
             return FAILURE;
         }
-    }
-    else
-    {
+    } else {
         return FAILURE;
     }
     set_nonblock(client_fd);
     return client_fd;
+}
+
+int get_host_ip_addresses()
+{
+    struct ifaddrs *myaddrs, *ifa;
+    void *in_addr;
+    pinterface_desc tmp, tmp2;
+    char buf[64];
+
+    if (getifaddrs(&myaddrs) != 0) {
+        return FAILURE;
+    }
+
+    for (ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+        memset(buf, 0, sizeof(buf));
+
+        if (ifa->ifa_addr == NULL)
+            continue;
+        if (!(ifa->ifa_flags & IFF_UP))
+            continue;
+
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *s4 = (struct sockaddr_in *)ifa->ifa_addr;
+            in_addr = &s4->sin_addr;
+        } else if (ifa->ifa_addr->sa_family == AF_INET6) {
+            struct sockaddr_in6 *s6 = (struct sockaddr_in6 *)ifa->ifa_addr;
+            in_addr = &s6->sin6_addr;
+        } else {
+            continue;
+        }
+
+        if (!inet_ntop(ifa->ifa_addr->sa_family, in_addr, buf, sizeof(buf) - 1)) {
+            fprintf(stderr, "%s: inet_ntop failed!\n", ifa->ifa_name);
+            continue;
+        }
+
+        tmp = (pinterface_desc) malloc(sizeof(interface_desc));
+        if (tmp == NULL) {
+            fprintf(stderr, "error allocating memeory\n");
+            return -1;
+        }
+
+        memset(tmp, 0, sizeof(interface_desc));
+
+        strncpy(tmp->name, ifa->ifa_name, sizeof(tmp->name) - 1);
+        strncpy(tmp->addr, buf, sizeof(tmp->addr) - 1);
+        tmp->type = ifa->ifa_addr->sa_family;
+
+        if (tmp->type == AF_INET) {
+            memcpy(&tmp->ia4, in_addr, sizeof(tmp->ia4));
+        }
+        if (tmp->type == AF_INET6) {
+            memcpy(&tmp->ia6, in_addr, sizeof(tmp->ia6));
+        }
+        if (if_desc == NULL) {
+            if_desc = tmp;
+        } else {
+            tmp2 = (pinterface_desc) if_desc;
+            while (tmp2->next != NULL) {
+                tmp2 = (pinterface_desc) tmp2->next;
+            }
+            tmp2->next = (void *) tmp;
+        }
+    }
+
+    freeifaddrs(myaddrs);
+    return SUCCESS;
 }

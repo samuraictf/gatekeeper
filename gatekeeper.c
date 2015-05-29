@@ -17,14 +17,11 @@ void Log(char *format, ...)
     va_list ap;
     char log_buf[1024];
     va_start(ap, format);
-    vsnprintf(log_buf, sizeof(log_buf)-1, format, ap);
+    vsnprintf(log_buf, sizeof(log_buf) - 1, format, ap);
     /* ONLY output to stderr if we are debugging AND no log server was specified */
-    if (log_fd == -1 && debugging == 1)
-    {
+    if (log_fd == -1 && debugging == 1) {
         fprintf(stderr, log_buf);
-    }
-    else
-    {
+    } else {
         sendto(log_fd, log_buf, strlen(log_buf), 0, (struct sockaddr*)&log_addr, sizeof(log_addr));
     }
     va_end(ap);
@@ -37,172 +34,24 @@ void Log(char *format, ...)
 void usage(void)
 {
     printf("Usage:\n");
-    printf("      -l <listen string> \n");
-    printf("      -r <redirect string> \n");
-    printf("      -o <optional log server string> \n");
-    printf("      -c <optional capture host string> \n");
-    printf("      -a <optional alarm in seconds> \n");
-    printf("      -t <optional chroot to this directory> \n");
-    printf("      -e <optional randomize child environment> \n");
-    printf("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0\n");
+    printf("      -l <listen string> GK_LISTENSTR\n");
+    printf("      -r <redirect string> GK_REDIRECTSTR\n");
+    printf("      -o <optional log server string> GK_LOGSRV\n");
+    printf("      -c <optional capture host string> GK_CAPHOST\n");
+    printf("      -a <optional alarm in seconds> GK_ALARM\n");
+    printf("      -t <optional chroot to this directory> GK_CHROOT\n");
+    printf("      -e <optional randomize child environment> GK_RANDENV\n");
+    printf("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0 GK_RLIMIT\n");
     printf("      -D optional output extra debugging information\n");
     printf("         (WARNING: using -D without -o will send debugging info to stderr.  NEVER\n");
-    printf("         do this in a live environment)\n");
-    printf("      -f optional randomize file descriptors by opening and not closing /dev/urandom several times\n");
-    printf("      -R <optional path to text file of regexs to match traffic against>\n");
-    printf("      -k <optional path to key file>\n\n");
+    printf("         do this in a live environment) GK_DEBUG\n");
+    printf("      -f optional randomize file descriptors by opening /dev/urandom several times GK_RANDFD\n");
+    printf("      -I <optional path to text file of regexs to match INPUT traffic against> GK_INPUT_REGEXFILE\n");
+    printf("      -O <optional path to text file of regexs to match OUTPUT traffic against> GK_OUTPUT_REGEXFILE\n");
+    printf("      -k <optional path to key file> GK_KEYFILE\n\n");
     printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -l 10.0.0.2:2090\n");
     printf("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
     printf("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
-}
-
-/*
- * list_add(): adds a value to the end of a singly linked list
- * returns:    -1 on error, 0 on success
- * notes:      value must point to space allocated on the heap
- */
-int list_add(pcre *re, pcre_list_t **head) {
-    pcre_list_t *i = NULL, *ptr = NULL;
-    /* does head even point to anything? */
-    if (head == NULL) {
-        return -1;
-    }
-    i = (pcre_list_t *)calloc(1, sizeof(pcre_list_t));
-    if (!i) {
-        return -1;
-    }
-    i->re = re;
-    i->next = NULL;
-    /* is the list currently empty?  if so, the new node is the first
-       and only element, assign it to head and return */
-    if (*head == NULL) {
-        *head = i;
-        return 0;
-    }
-    ptr = *head;
-    while (ptr) {
-        /* are we at the end of the list?  if so, insert new node
-           at the end */
-        if (ptr->next == NULL) {
-            ptr->next = i;
-            break;
-        }
-        ptr = ptr->next;
-    }
-    return 0;
-}
-
-/*
- * free_list(): iterates a singly linked list, free()'ing the value,
- *              then the node itself.
- * returns:     none
- */
-void free_list(pcre_list_t *list)
-{
-        pcre_list_t *ptr, *tmp;
-        if (list == NULL) {
-                return;
-        }
-        ptr = list;
-        while (ptr) {
-                tmp = ptr->next;
-                if (ptr->re)
-                        free(ptr->re);
-                free(ptr);
-                ptr = tmp;
-        }
-}
-
-/*
- * take supplied filename and read it line-by-line, and compile
- * the line as a pcre.  compiled pcres are added to a singly-linked
- * list that we'll use later to match traffic against
- */
-
-int parse_pcre_inputs(const char *fname)
-{
-    FILE *f;
-    char line[1024];
-    pcre *re;
-    const char *error;
-    int erroffset;
-    if ((f = fopen(fname, "r")) == NULL) {
-        Log("Error opening %s for reading: %s\n", fname, strerror(errno));
-        return FAILURE;
-    }
-    Log("Parsing pcre inputs from %s... ", fname);
-    while (fgets(line, sizeof(line), f) != NULL) {
-        re = pcre_compile(line, 0, &error, &erroffset, NULL);
-        if (re == NULL) {
-            /* compilation failed, bail out */
-            Log("PCRE compilation failed on line %d at offset %d: %s\n",
-                (num_pcre_inputs+1), erroffset, error);
-            return FAILURE;
-        }
-        /* compilation succeeded, add to linked list */
-        list_add(re, &pcre_inputs);
-        num_pcre_inputs++;
-    }
-    fclose(f);
-    Log("Done.\nParsed %d pcre inputs.\n", num_pcre_inputs);
-
-    return 0;
-}
-
-/*
- * iterates the list of compiled pcres, checking for any matches
- * against the supplied buffer.  returns 1 on the first match.
- * returns 0 if no matches are found.
- */
-
-int check_for_match(char *buf, int num_bytes)
-{
-    int rc;
-    pcre_list_t *ptr;
-
-    if (pcre_inputs) {
-        for (ptr = pcre_inputs; ptr; ptr = ptr->next) {
-            /* check each compiled regex against the buffer */
-            rc = pcre_exec(ptr->re, NULL, buf, num_bytes, 0, 0, NULL, 0);
-            if (rc < 0) {
-                /* either there was no match or an error occured */
-                if (debugging) {
-                    Log("pcre_exec() returned %d: ", rc);
-                    switch (rc) {
-                        case PCRE_ERROR_NOMATCH:
-                            Log("String did not match the pattern\n");
-                            break;
-                        case PCRE_ERROR_NULL:
-                            Log("Something was null\n");
-                            break;
-                        case PCRE_ERROR_BADOPTION:
-                            Log("A bad option was passed\n");
-                            break;
-                        case PCRE_ERROR_BADMAGIC:
-                            Log("Magic number bad (compiled re corrupt?)\n");
-                            break;
-                        case PCRE_ERROR_UNKNOWN_NODE:
-                            Log("Something kooky in the compiled re\n");
-                            break;
-                        case PCRE_ERROR_NOMEMORY:
-                            Log("Ran out of memory\n");
-                            break;
-                        default:
-                            Log("Unknown error\n");
-                            break;
-                    }
-                }
-                continue;
-            }
-            else {
-                if (debugging) {
-                    Log("Found matching pcre in buffer.\n");
-                }
-                return 1;
-            }
-        }
-    }
-    return 0;
 }
 
 /*
@@ -243,7 +92,8 @@ int main(int argc, char * argv[])
     int ringbuf_cnt;
     char recvbuf[RECVBUF_SIZE];
     char pcrebuf[RECVBUF_SIZE];
-    char * regex_fname    = NULL;
+    char * regex_input_fname    = NULL;
+    char * regex_output_fname   = NULL;
     ringbuffer_t * recv_ringbuf = NULL;
 
     /* initialize globals*/
@@ -256,37 +106,45 @@ int main(int argc, char * argv[])
     memset(&rl, 0, sizeof(rl));
 
     /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr */
-    if (argc < 5)
-    {
+    if (argc < 5) {
         usage();
         goto cleanup;
     }
 
     /* setup RNG */
     f = open("/dev/urandom", O_RDONLY, NULL);
-        if (f == -1 || sizeof(seed) != read(f, &seed, sizeof(seed)))
-        {
-                seed=time(0);
-        }
-        srand(seed);
-        if(f != -1)
-        {
-                close(f);
-                f = -1;
-        }
-        seed = 0;
-        build_rand_envp();
+    if (f == -1 || sizeof(seed) != read(f, &seed, sizeof(seed))) {
+        seed = time(0);
+    }
+    srand(seed);
+    if (f != -1) {
+        close(f);
+        f = -1;
+    }
+    seed = 0;
+    build_rand_envp();
     /* avoid zombie children */
-    if (signal(SIGCHLD, sigchld) == SIG_ERR)
-    {
+    if (signal(SIGCHLD, sigchld) == SIG_ERR) {
         Log("Unable to set SIGCHLD handler");
         goto cleanup;
     }
 
-    while ((c=getopt(argc, argv, "hDtR:l:r:k:o:c:a:dfe")) != -1)
-    {
-        switch (c)
-        {
+    /*TODO add support for arguments from environment variables
+    GK_LISTENSTR
+    GK_REDIRECTSTR
+    GK_LOGSRV
+    GK_CAPHOST
+    GK_ALARM
+    GK_CHROOT
+    GK_RANDENV
+    GK_RLIMIT
+    GK_DEBUG
+    GK_RANDFD
+    GK_INPUT_REGEXFILE
+    GK_OUTPUT_REGEXFILE
+    GK_KEYFILE*/
+    while ((c = getopt(argc, argv, "hDtI:O:l:r:k:o:c:a:dfe")) != -1) {
+        switch (c) {
         case 'h':
             /* help and exit*/
             usage();
@@ -332,19 +190,21 @@ int main(int argc, char * argv[])
             break;
         case 'f':
             /* this will cause later opens after exec to have unexpected fd numbers, we don't close these */
-            for (i = 0; i < (unsigned int) ((rand() % 100) + 1); i++)
-            {
+            for (i = 0; i < (unsigned int) ((rand() % 100) + 1); i++) {
                 open("/dev/urandom", O_RDONLY, NULL);
             }
             break;
-        case 'R':
-            regex_fname = strdup(optarg);
+        case 'I':
+            regex_input_fname = strdup(optarg);
+            break;
+        case 'O':
+            regex_output_fname = strdup(optarg);
             break;
         case '?':
             usage();
-            if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt)
+            if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt || 'I' == optopt || 'O' == optopt)
                 Log("Option '-%c' requires an argument\n", optopt);
-            else if(isprint(optopt))
+            else if (isprint(optopt))
                 Log("Unknown options '-%c'\n", optopt);
             else
                 Log("Unknown getopt return: 0x%x\n", c);
@@ -353,65 +213,63 @@ int main(int argc, char * argv[])
     }
 
     /* check for required arguments */
-    if (listenstr == NULL)
-    {
-        Log("Argument -l (listen string) is required\n");
+    if (listenstr == NULL) {
+        Log("Argument -l (listen string) is required GK_LISTENSTR\n");
         goto cleanup;
     }
 
-    if (redirectstr == NULL)
-    {
-        Log("Argument -r (redirect string) is required\n");
+    if (redirectstr == NULL) {
+        Log("Argument -r (redirect string) is required GK_REDIRECTSTR\n");
         goto cleanup;
     }
 
-    /* if a regex file was specified, parse it */
-    if (regex_fname != NULL) {
-        if (parse_pcre_inputs(regex_fname) == FAILURE) {
-            Log("Failed to parse all pcre inputs, bailing out...\n");
+    /* if a regex input file was specified, parse it */
+    if (regex_input_fname != NULL) {
+        if (parse_pcre_inputs(regex_input_fname) == FAILURE) {
+            Log("Failed to parse all pcre input filters, bailing out...\n");
+            goto cleanup;
+        }
+    }
+    /* if a regex output file was specified, parse it */
+    if (regex_output_fname != NULL) {
+        if (parse_pcre_inputs(regex_output_fname) == FAILURE) {
+            Log("Failed to parse all pcre output filters, bailing out...\n");
             goto cleanup;
         }
     }
 
     /* setup logging server globals */
-    if (logsrvstr != NULL)
-    {
-        if (setup_logsocket(logsrvstr) == FAILURE)
-        {
+    if (logsrvstr != NULL) {
+        if (setup_logsocket(logsrvstr) == FAILURE) {
             Log("Failed to setup log server socket\n");
             goto cleanup;
         }
     }
 
     /* set alarm if one was specified */
-    if (alarmval != 0)
-    {
+    if (alarmval != 0) {
         alarm(alarmval);
     }
 
     /* create the recv ring buffer if we have pcre inputs to match against*/
-    if (num_pcre_inputs > 0)
-    {
+    if (num_pcre_inputs > 0) {
         recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
     }
 
     /* setup local listener fd's, will block to accept connections */
-    if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE)
-    {
+    if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE) {
         goto cleanup;
     }
 
     /* setup remote fd's */
-    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, rand_env ? REMOTE_RAND_ENV : REMOTE) == FAILURE)
-    {
+    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, rand_env ? REMOTE_RAND_ENV : REMOTE) == FAILURE) {
         goto cleanup;
     }
 
     /* start the pumps */
     if (listen_fd_r > remote_fd_r) {
         highest_fd = listen_fd_r;
-    }
-    else {
+    } else {
         highest_fd = remote_fd_r;
     }
     while (1) {
@@ -419,7 +277,7 @@ int main(int argc, char * argv[])
         FD_ZERO(&readfds);
         FD_SET(listen_fd_r, &readfds);
         FD_SET(remote_fd_r, &readfds);
-        if (select(highest_fd+1, &readfds, NULL, NULL, NULL) == -1) {
+        if (select(highest_fd + 1, &readfds, NULL, NULL, NULL) == -1) {
             Log("select() threw an error: %s\n", strerror(errno));
             goto cleanup;
         }
@@ -431,8 +289,7 @@ int main(int argc, char * argv[])
                 }
                 goto cleanup;
             }
-        }
-        else if (FD_ISSET(remote_fd_r, &readfds)) {
+        } else if (FD_ISSET(remote_fd_r, &readfds)) {
             if ((num_bytes = read(remote_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
                 if (debugging) {
                     Log("Got EOF on remote_fd_r\n");
@@ -465,8 +322,7 @@ int main(int argc, char * argv[])
                 Log("Huh? Couldn't write all available data to remote_fd...\n");
                 /* fail here? */
             }
-        }
-        else if (FD_ISSET(remote_fd_r, &readfds)) {
+        } else if (FD_ISSET(remote_fd_r, &readfds)) {
             /* now pump out listen_fd_w */
             if (write(listen_fd_w, recvbuf, num_bytes) != num_bytes) {
                 Log("Huh? Couldn't write all available data to listen_fd...\n");
@@ -499,7 +355,8 @@ cleanup:
  * This farms exit status from forked children to avoid
  * having any zombie processes lying around
  */
-void sigchld() {
+void sigchld()
+{
     int status;
     while (wait4(-1, &status, WNOHANG, NULL) > 0) {  }
 }
@@ -510,8 +367,7 @@ void sigchld() {
 int setup_logsocket(char * logsrvstr)
 {
     log_addr.sin_family = AF_INET;
-    if(parse_address_string(logsrvstr, &log_addr.sin_addr.s_addr, sizeof(log_addr.sin_addr.s_addr), &log_addr.sin_port, AF_INET) == SUCCESS)
-    {
+    if (parse_address_string(logsrvstr, &log_addr.sin_addr.s_addr, sizeof(log_addr.sin_addr.s_addr), &log_addr.sin_port, AF_INET) == SUCCESS) {
         log_fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (log_fd == -1)
             return FAILURE;
@@ -558,24 +414,19 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     memset(&addr, 0, sizeof(addr));
     memset(&addr6, 0, sizeof(addr6));
 
-    if (strncmp("stdio", instr, strlen("stdio")) == 0)
-    {
-        if (local==LOCAL)
-        {
+    if (strncmp("stdio", instr, strlen("stdio")) == 0) {
+        if (local == LOCAL) {
             /* remove buffering on stdio */
             if (0 != setvbuf(stdin, (char*) NULL, _IONBF, 0) ||
-                0 != setvbuf(stdout, (char*) NULL, _IONBF, 0) ||
-                0 != setvbuf(stderr, (char*) NULL, _IONBF, 0))
-            {
+                    0 != setvbuf(stdout, (char*) NULL, _IONBF, 0) ||
+                    0 != setvbuf(stderr, (char*) NULL, _IONBF, 0)) {
                 return FAILURE;
             }
             fd_r = 0;
             fd_w = 1;
             /* redirect stderr to stdout so we only have 2 fd's to deal with */
             dup2(1, 2);
-        }
-        else if (local == REMOTE || local == REMOTE_RAND_ENV)
-        {
+        } else if (local == REMOTE || local == REMOTE_RAND_ENV) {
             /* set up pipes. pipe names are from the child (remote) process perspective */
             pipe(in_pipe);
             pipe(out_pipe);
@@ -586,63 +437,54 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                 Log("fork() failed: %s\n", strerror(errno));
                 return FAILURE;
             }
-            if (pid == 0)
-            {
+            if (pid == 0) {
                 /* child process */
-                args_start = (strchr(instr, ':')+1);
-                if (args_start == NULL && *args_start++ != '\0')
-                {
+                args_start = (strchr(instr, ':') + 1);
+                if (args_start == NULL && *args_start++ != '\0') {
                     Log("Invalid remote string, stdio specified without a ':' followed by a program to run. i.e. \"stdio:/bin/cat foo\"\n");
                     return FAILURE;
                 }
 
                 /* build up an argv */
                 /* count the number of spaces for arguments */
-                for (arg_count = 0; *instr; instr++)
-                {
-                    if (*instr == ' ')
-                    {
+                for (arg_count = 0; *instr; instr++) {
+                    if (*instr == ' ') {
                         arg_count++;
                     }
                 }
 
                 /* create arg_count +2 for argv[0] and NULL termination */
                 argv = calloc(sizeof(void *) * (arg_count + 2), 1);
-                if (argv==NULL)
-                {
+                if (argv == NULL) {
                     return FAILURE;
                 }
 
                 last_arg = args_start;
                 tmp = args_start;
-                for (i=0; i<arg_count+1, *tmp; tmp++)
-                {
-                    if (*tmp == ' ')
-                    {
+                for (i = 0; i < arg_count + 1, *tmp; tmp++) {
+                    if (*tmp == ' ') {
                         *tmp = '\0';
                         argv[i] = last_arg;
-                        last_arg = tmp+1;
+                        last_arg = tmp + 1;
                         i++;
                     }
                 }
-                argv[i]=last_arg;
+                argv[i] = last_arg;
 
                 /* clean up pipes by closing file descriptors we won't use */
                 close(in_pipe[1]);
                 close(out_pipe[0]);
-                
+
                 /* dup stdio to proper pipes */
                 dup2(in_pipe[0], 0);
                 dup2(out_pipe[1], 1);
                 dup2(out_pipe[1], 2);
-                
-                if (local == REMOTE_RAND_ENV)
-                {
+
+                if (local == REMOTE_RAND_ENV) {
                     envp = build_rand_envp();
                     /*argv = getenv("GATEKEEPER_EXEC_ARGS");
                     execve()*/
-                }
-                else {
+                } else {
                     /* exec program using environment of parent for now. */
                     if (debugging) {
                         Log("executing ");
@@ -658,96 +500,62 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                 }
             }
             /* parent process */
-            
+
             /* clean up pipes by closing file descriptors we won't use */
             close(in_pipe[0]);
             close(out_pipe[1]);
-            
+
             /* r/w file descriptors are the parent end of the r/w pipes */
             fd_r = out_pipe[0];
             fd_w = in_pipe[1];
         }
-    }
-    else if (strncmp("tcpipv4", instr, strlen("tcpipv4")) == 0)
-    {
-        if (parse_address_string(instr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
-        {
+    } else if (strncmp("tcpipv4", instr, strlen("tcpipv4")) == 0) {
+        if (parse_address_string(instr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS) {
             Log("TCP %s:%d\n", inet_ntoa(addr), port);
-        }
-        else
-        {
+        } else {
             return FAILURE;
         }
-        if (local==LOCAL)
-        {
-                fd_r = fd_w = init_tcp4(port, &addr, NULL);
-        }
-        else if (local == REMOTE)
-        {
+        if (local == LOCAL) {
+            fd_r = fd_w = init_tcp4(port, &addr, NULL);
+        } else if (local == REMOTE) {
             fd_r = fd_w = connect_ipv4(SOCK_STREAM, port, &addr);
         }
-    }
-    else if (strncmp("udpipv4", instr, strlen("udpipv4")) == 0)
-    {
-        if (parse_address_string(instr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS)
-        {
+    } else if (strncmp("udpipv4", instr, strlen("udpipv4")) == 0) {
+        if (parse_address_string(instr, &addr, sizeof(addr), &port, AF_INET) == SUCCESS) {
             Log("UDP %s:%d\n", inet_ntoa(addr), port);
-        }
-        else
-        {
+        } else {
             return FAILURE;
         }
-        if(local==LOCAL)
-        {
-                fd_r = fd_w = init_udp4(port, &addr);
-        }
-        else if (local == REMOTE)
-        {
+        if (local == LOCAL) {
+            fd_r = fd_w = init_udp4(port, &addr);
+        } else if (local == REMOTE) {
             fd_r = fd_w = connect_ipv4(SOCK_DGRAM, port, &addr);
         }
-    }
-    else if (strncmp("tcpipv6", instr, strlen("tcpipv6")) == 0)
-    {
-        if (parse_address_string(instr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
-        {
-            inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
+    } else if (strncmp("tcpipv6", instr, strlen("tcpipv6")) == 0) {
+        if (parse_address_string(instr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS) {
+            inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str) - 1);
             Log("TCP [%s]:%d\n", str, port);
-        }
-        else
-        {
+        } else {
             return FAILURE;
         }
-        if(local==LOCAL)
-        {
-                fd_r = fd_w = init_tcp6(port, &addr6, NULL);
-        }
-        else if (local == REMOTE)
-        {
+        if (local == LOCAL) {
+            fd_r = fd_w = init_tcp6(port, &addr6, NULL);
+        } else if (local == REMOTE) {
             fd_r = fd_w = connect_ipv6(SOCK_STREAM, port, &addr6);
         }
-    }
-    else if (strncmp("udpipv6", instr, strlen("udpipv6")) == 0)
-    {
-        if (parse_address_string(instr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS)
-        {
-            inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str)-1);
+    } else if (strncmp("udpipv6", instr, strlen("udpipv6")) == 0) {
+        if (parse_address_string(instr, &addr6, sizeof(addr6), &port, AF_INET6) == SUCCESS) {
+            inet_ntop(AF_INET6, (char *)&addr6, str, sizeof(str) - 1);
             Log("UDP [%s]:%d\n", str, port);
-        }
-        else
-        {
+        } else {
             return FAILURE;
         }
-        if(local==LOCAL)
-        {
-                fd_r = fd_w = init_udp6(port, &addr6);
-        }
-        else if (local == REMOTE)
-        {
+        if (local == LOCAL) {
+            fd_r = fd_w = init_udp6(port, &addr6);
+        } else if (local == REMOTE) {
             fd_r = fd_w = connect_ipv6(SOCK_DGRAM, port, &addr6);
         }
-    }
-    else
-    {
+    } else {
         Log("Invalid listen string, one of stdio, tcpipv4, tcpipv6, udpipv4, udpipv6 is required\n");
         return FAILURE;
     }
@@ -784,29 +592,25 @@ int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned s
     char * end = NULL;
     int tmp_port = 0;
 
-    if (instr == NULL || port == NULL || addr == NULL || addr_size == 0 || address_family == 0)
-    {
+    if (instr == NULL || port == NULL || addr == NULL || addr_size == 0 || address_family == 0) {
         Log("Missing parameters to parse_address_string.\n");
         return FAILURE;
     }
 
-    if (address_family != AF_INET && address_family != AF_INET6)
-    {
+    if (address_family != AF_INET && address_family != AF_INET6) {
         Log("Invalid address family specified.\n");
         return FAILURE;
     }
 
     if ((addr_size != sizeof(struct in_addr) && address_family == AF_INET) ||
-        (addr_size != sizeof(struct in6_addr) && address_family == AF_INET6))
-    {
+            (addr_size != sizeof(struct in6_addr) && address_family == AF_INET6)) {
         Log("Invalid address size specified.\n");
         return FAILURE;
     }
 
     /* advance past tcpipv4 or tcpipv6 we start after the ':' */
     string_start = strchr(instr, ':');
-    if (string_start == NULL)
-    {
+    if (string_start == NULL) {
         Log("Unable to parse address string. Format as tcpipv4:1.2.3.4:1234 or tcpipv4:1234\n");
         return FAILURE;
     }
@@ -819,50 +623,38 @@ int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned s
         *end = '\x00';
 
     /* parsing for IPv6 addresses */
-    if (address_family == AF_INET6)
-    {
+    if (address_family == AF_INET6) {
         addr_start = strchr (string_start, '[');
         end = strchr (string_start, ']');
-        if (addr_start == NULL && end == NULL)
-        {
+        if (addr_start == NULL && end == NULL) {
             /* only a port was specified */
             port_start = string_start;
             addr_start = NULL;
             memset(addr, 0, addr_size);
-        }
-        else if (addr_start != NULL && end != NULL)
-        {
+        } else if (addr_start != NULL && end != NULL) {
             /* remove the '[', ']', and ':' following the ']' character */
             *addr_start = '\x00';
             addr_start++;
             *end = '\x00';
             end++;
-            if (*end != ':')
-            {
+            if (*end != ':') {
                 Log("No port specified with IPv6 address. Format as tcpipv6:[::aaaa:bbbb:cccc]:80\n");
                 return FAILURE;
             }
             *end = '\x00';
             end++;
             port_start = end;
-        }
-        else
-        {
+        } else {
             Log("Invalid IPv6 address specified in address string. Format as tcpipv6:[::aaaa:bbbb:cccc]:80\n");
             return FAILURE;
         }
-    }
-    else if (address_family == AF_INET)
-    {
+    } else if (address_family == AF_INET) {
         port_start = strchr(string_start, ':');
-        if (port_start != NULL)
-        {
+        if (port_start != NULL) {
             addr_start = string_start;
             *port_start = '\x00';
             port_start++;
-        }
-        else
-        {
+        } else {
             /* only a port was specified */
             port_start = string_start;
             addr_start = NULL;
@@ -870,22 +662,17 @@ int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned s
         }
     }
 
-    if (addr_start != NULL)
-    {
-        if (inet_pton(address_family, addr_start, addr) != 1)
-        {
+    if (addr_start != NULL) {
+        if (inet_pton(address_family, addr_start, addr) != 1) {
             Log("Invalid IP address specified in address string.\n");
             return FAILURE;
         }
     }
 
     tmp_port = atoi(port_start);
-    if (tmp_port > 0 && tmp_port <= 0xffff)
-    {
+    if (tmp_port > 0 && tmp_port <= 0xffff) {
         *port = (unsigned short) tmp_port;
-    }
-    else
-    {
+    } else {
         Log("Invalid port specification in address string.\n");
         return FAILURE;
     }
@@ -901,38 +688,29 @@ char ** build_rand_envp()
     int name_len = 0;
     int val_len = 0;
     unsigned char c = 0;
-    ret = calloc(sizeof(void*) * (n+1), 1);
+    ret = calloc(sizeof(void*) * (n + 1), 1);
     if (ret == NULL)
         return ret;
-    for (i = 0; i < n; i++)
-    {
+    for (i = 0; i < n; i++) {
         name_len = rand() % 500 + 1;
         val_len = rand() % 500 + 1;
         ret[i] = calloc(name_len + val_len + 2, 1);
         if (ret[i] == NULL)
             break;
-        for (x = 0; x < name_len; x++)
-        {
+        for (x = 0; x < name_len; x++) {
             c = (unsigned char) rand();
-            if(isalnum(c))
-            {
+            if (isalnum(c)) {
                 ret[i][x] = c;
-            }
-            else
-            {
+            } else {
                 x--;
             }
         }
         ret[i][x] = '=';
-        for (x = name_len + 1; x < name_len+val_len+1; x++)
-        {
+        for (x = name_len + 1; x < name_len + val_len + 1; x++) {
             c = (unsigned char) rand() * 255;
-            if(isalnum(c))
-            {
+            if (isalnum(c)) {
                 ret[i][x] = c;
-            }
-            else
-            {
+            } else {
                 x--;
             }
         }
