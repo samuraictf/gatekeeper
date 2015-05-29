@@ -8,7 +8,8 @@
  * We need to do this because writing to stdout/err will mess with with clients
  * that use these FD's. Basically, no printing. K?
  *
- * Will break this rule ONLY if log_fd == -1.
+ * Will break this rule ONLY if log_fd == -1 (no log server specified)
+ * and debugging == 1 (-D specified on cmd line).
  */
 
 void Log(char *format, ...)
@@ -17,7 +18,8 @@ void Log(char *format, ...)
     char log_buf[1024];
     va_start(ap, format);
     vsnprintf(log_buf, sizeof(log_buf)-1, format, ap);
-    if (log_fd == -1)
+    /* ONLY output to stderr if we are debugging AND no log server was specified */
+    if (log_fd == -1 && debugging == 1)
     {
         fprintf(stderr, log_buf);
     }
@@ -29,28 +31,29 @@ void Log(char *format, ...)
 }
 
 /*
- * Logs usage and returns. Does not exit.
+ * Prints usage and returns. Does not exit.
  */
 
 void usage(void)
 {
-    Log("Usage:\n");
-    Log("      -l <listen string> \n");
-    Log("      -r <redirect string> \n");
-    Log("      -o <optional log server string> \n");
-    Log("      -c <optional capture host string> \n");
-    Log("      -a <optional alarm in seconds> \n");
-    Log("      -t <optional chroot to this directory> \n");
-    Log("      -e <optional randomize child environment> \n");
-    Log("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0\n");
-    Log("      -D optional output extra debugging information\n");
-    Log("      -v optional enable verbose output\n");
-    Log("      -f optional randomize file descriptors by opening and not closing /dev/urandom several times\n");
-    Log("      -R <optional path to text file of regexs to match traffic against>\n");
-    Log("      -k <optional path to key file>\n\n");
-    Log("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -l 10.0.0.2:2090\n");
-    Log("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
-    Log("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
+    printf("Usage:\n");
+    printf("      -l <listen string> \n");
+    printf("      -r <redirect string> \n");
+    printf("      -o <optional log server string> \n");
+    printf("      -c <optional capture host string> \n");
+    printf("      -a <optional alarm in seconds> \n");
+    printf("      -t <optional chroot to this directory> \n");
+    printf("      -e <optional randomize child environment> \n");
+    printf("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0\n");
+    printf("      -D optional output extra debugging information\n");
+    printf("         (WARNING: using -D without -o will send debugging info to stderr.  NEVER\n");
+    printf("         do this in a live environment)\n");
+    printf("      -f optional randomize file descriptors by opening and not closing /dev/urandom several times\n");
+    printf("      -R <optional path to text file of regexs to match traffic against>\n");
+    printf("      -k <optional path to key file>\n\n");
+    printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -l 10.0.0.2:2090\n");
+    printf("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
+    printf("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
 }
 
 /*
@@ -127,9 +130,7 @@ int parse_pcre_inputs(const char *fname)
         Log("Error opening %s for reading: %s\n", fname, strerror(errno));
         return FAILURE;
     }
-    if (verbose) {
-        Log("Parsing pcre inputs from %s... ", fname);
-    }
+    Log("Parsing pcre inputs from %s... ", fname);
     while (fgets(line, sizeof(line), f) != NULL) {
         re = pcre_compile(line, 0, &error, &erroffset, NULL);
         if (re == NULL) {
@@ -143,9 +144,7 @@ int parse_pcre_inputs(const char *fname)
         num_pcre_inputs++;
     }
     fclose(f);
-    if (verbose) {
-        Log("Done.\nParsed %d pcre inputs.\n", num_pcre_inputs);
-    }
+    Log("Done.\nParsed %d pcre inputs.\n", num_pcre_inputs);
 
     return 0;
 }
@@ -196,7 +195,7 @@ int check_for_match(char *buf, int num_bytes)
                 continue;
             }
             else {
-                if (verbose) {
+                if (debugging) {
                     Log("Found matching pcre in buffer.\n");
                 }
                 return 1;
@@ -252,7 +251,6 @@ int main(int argc, char * argv[])
     num_pcre_inputs = 0;
     pcre_inputs = NULL;
     debugging = 0;
-    verbose = 0;
 
     memset(&log_addr, 0, sizeof(log_addr));
     memset(&rl, 0, sizeof(rl));
@@ -285,7 +283,7 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
-    while ((c=getopt(argc, argv, "hvDtR:l:r:k:o:c:a:dfe")) != -1)
+    while ((c=getopt(argc, argv, "hDtR:l:r:k:o:c:a:dfe")) != -1)
     {
         switch (c)
         {
@@ -316,9 +314,6 @@ int main(int argc, char * argv[])
             break;
         case 'e':
             rand_env = 1;
-            break;
-        case 'v':
-            verbose = 1;
             break;
         case 'D':
             debugging = 1;
@@ -431,13 +426,17 @@ int main(int argc, char * argv[])
         /* read in data from the socket that is ready */
         if (FD_ISSET(listen_fd_r, &readfds)) {
             if ((num_bytes = read(listen_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
-                Log("Got EOF on listen_fd_r\n");
+                if (debugging) {
+                    Log("Got EOF on listen_fd_r\n");
+                }
                 goto cleanup;
             }
         }
         else if (FD_ISSET(remote_fd_r, &readfds)) {
             if ((num_bytes = read(remote_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
-                Log("Got EOF on remote_fd_r\n");
+                if (debugging) {
+                    Log("Got EOF on remote_fd_r\n");
+                }
                 goto cleanup;
             }
         }
@@ -645,7 +644,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                 }
                 else {
                     /* exec program using environment of parent for now. */
-                    if (verbose) {
+                    if (debugging) {
                         Log("executing ");
                         for (i = 0; i <= arg_count; i++) {
                             Log("%s ", argv[i]);
