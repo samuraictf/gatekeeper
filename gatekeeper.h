@@ -53,6 +53,7 @@ typedef struct _interface_ip_list {
 	void * next;
 	char type;
 	char addr[64];
+	char name[24];
 	struct in_addr ia4;
 	struct in6_addr ia6;
 } interface_ip_list, *pinterface_ip_list;

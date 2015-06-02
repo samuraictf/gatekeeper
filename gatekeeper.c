@@ -810,4 +810,3 @@ char ** build_rand_envp()
     ret[i] = NULL;
     return ret;
 }
-

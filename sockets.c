@@ -413,7 +413,7 @@ int get_host_ip_addresses()
 {
     struct ifaddrs *myaddrs, *ifa;
     void *in_addr;
-    pinterface_desc tmp, tmp2;
+    pinterface_ip_list tmp, tmp2;
     char buf[64];
 
     if (getifaddrs(&myaddrs) != 0) {
@@ -443,13 +443,11 @@ int get_host_ip_addresses()
             continue;
         }
 
-        tmp = (pinterface_desc) malloc(sizeof(interface_desc));
+        tmp = (pinterface_ip_list) calloc(sizeof(interface_ip_list), 1);
         if (tmp == NULL) {
             fprintf(stderr, "error allocating memeory\n");
-            return -1;
+            return FAILURE;
         }
-
-        memset(tmp, 0, sizeof(interface_desc));
 
         strncpy(tmp->name, ifa->ifa_name, sizeof(tmp->name) - 1);
         strncpy(tmp->addr, buf, sizeof(tmp->addr) - 1);
@@ -461,12 +459,12 @@ int get_host_ip_addresses()
         if (tmp->type == AF_INET6) {
             memcpy(&tmp->ia6, in_addr, sizeof(tmp->ia6));
         }
-        if (if_desc == NULL) {
-            if_desc = tmp;
+        if (if_list == NULL) {
+            if_list = tmp;
         } else {
-            tmp2 = (pinterface_desc) if_desc;
+            tmp2 = (pinterface_ip_list) if_list;
             while (tmp2->next != NULL) {
-                tmp2 = (pinterface_desc) tmp2->next;
+                tmp2 = (pinterface_ip_list) tmp2->next;
             }
             tmp2->next = (void *) tmp;
         }
