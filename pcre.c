@@ -105,45 +105,43 @@ int check_for_match(char *buf, int num_bytes)
     int rc;
     pcre_list_t *ptr;
 
-    if (pcre_inputs) {
-        for (ptr = pcre_inputs; ptr; ptr = ptr->next) {
-            /* check each compiled regex against the buffer */
-            rc = pcre_exec(ptr->re, NULL, buf, num_bytes, 0, 0, NULL, 0);
-            if (rc < 0) {
-                /* either there was no match or an error occured */
-                if (debugging) {
-                    Log("pcre_exec() returned %d: ", rc);
-                    switch (rc) {
-                    case PCRE_ERROR_NOMATCH:
-                        Log("String did not match the pattern\n");
-                        break;
-                    case PCRE_ERROR_NULL:
-                        Log("Something was null\n");
-                        break;
-                    case PCRE_ERROR_BADOPTION:
-                        Log("A bad option was passed\n");
-                        break;
-                    case PCRE_ERROR_BADMAGIC:
-                        Log("Magic number bad (compiled re corrupt?)\n");
-                        break;
-                    case PCRE_ERROR_UNKNOWN_NODE:
-                        Log("Something kooky in the compiled re\n");
-                        break;
-                    case PCRE_ERROR_NOMEMORY:
-                        Log("Ran out of memory\n");
-                        break;
-                    default:
-                        Log("Unknown error\n");
-                        break;
-                    }
+    for (ptr = pcre_inputs; ptr; ptr = ptr->next) {
+        /* check each compiled regex against the buffer */
+        rc = pcre_exec(ptr->re, NULL, buf, num_bytes, 0, 0, NULL, 0);
+        if (rc < 0) {
+            /* either there was no match or an error occured */
+            if (debugging) {
+                Log("pcre_exec() returned %d: ", rc);
+                switch (rc) {
+                case PCRE_ERROR_NOMATCH:
+                    Log("String did not match the pattern\n");
+                    break;
+                case PCRE_ERROR_NULL:
+                    Log("Something was null\n");
+                    break;
+                case PCRE_ERROR_BADOPTION:
+                    Log("A bad option was passed\n");
+                    break;
+                case PCRE_ERROR_BADMAGIC:
+                    Log("Magic number bad (compiled re corrupt?)\n");
+                    break;
+                case PCRE_ERROR_UNKNOWN_NODE:
+                    Log("Something kooky in the compiled re\n");
+                    break;
+                case PCRE_ERROR_NOMEMORY:
+                    Log("Ran out of memory\n");
+                    break;
+                default:
+                    Log("Unknown error\n");
+                    break;
                 }
-                continue;
-            } else {
-                if (debugging) {
-                    Log("Found matching pcre in buffer.\n");
-                }
-                return 1;
             }
+            continue;
+        } else {
+            if (debugging) {
+                Log("Found matching pcre in buffer.\n");
+            }
+            return 1;
         }
     }
     return 0;

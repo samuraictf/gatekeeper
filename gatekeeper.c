@@ -48,6 +48,7 @@ void usage(void)
     printf("      -f optional randomize file descriptors by opening /dev/urandom several times GK_RANDFD\n");
     printf("      -I <optional path to text file of regexs to match INPUT traffic against> GK_INPUT_REGEXFILE\n");
     printf("      -O <optional path to text file of regexs to match OUTPUT traffic against> GK_OUTPUT_REGEXFILE\n");
+    printf("      -b <optional path to text file of IP's to blacklist> GK_BLACKLIST_IP\n");
     printf("      -k <optional path to key file> GK_KEYFILE\n\n");
     printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -l 10.0.0.2:2090\n");
     printf("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
@@ -70,51 +71,82 @@ void usage(void)
 
 int main(int argc, char * argv[])
 {
-    char * listenstr      = NULL;
-    char * redirectstr    = NULL;
-    char * logsrvstr      = NULL;
-    char * capsrvstr      = NULL;
-    char * keyfile        = NULL;
-    int c                 = -1;
-    int f                 = -1;
-    int rand_env          = 0;
-    unsigned int i        = 0;
-    unsigned int alarmval = 0;
-    unsigned int seed     = 0;
-    int listen_fd_r       = -1;
-    int listen_fd_w       = -1;
-    int remote_fd_r       = -1;
-    int remote_fd_w       = -1;
-    struct rlimit rl;
-    fd_set readfds;
-    int highest_fd;
-    int num_bytes;
-    int ringbuf_cnt;
-    char recvbuf[RECVBUF_SIZE];
-    char pcrebuf[RECVBUF_SIZE];
+    char * listenstr            = NULL;
+    char * redirectstr          = NULL;
+    char * logsrvstr            = NULL;
+    char * capsrvstr            = NULL;
+    char * alarmvalstr          = NULL;
+    char * chrootstr            = NULL;
+    char * randenvstr           = NULL;
+    char * rlimitstr            = NULL;
+    char * debugstr             = NULL;
+    char * randfdstr            = NULL;
     char * regex_input_fname    = NULL;
     char * regex_output_fname   = NULL;
+    char * keyfile              = NULL;
+    char * blacklist_ip_fname   = NULL;
+    int c                       = -1;
+    int f                       = -1;
+    int randenv                 = 0;
+    int randfd                  = 0;
+    int rlimit                  = 0;
+    unsigned int i              = 0;
+    unsigned int alarmval       = 0;
+    unsigned int seed           = 0;
+    int listen_fd_r             = -1;
+    int listen_fd_w             = -1;
+    int remote_fd_r             = -1;
+    int remote_fd_w             = -1;
+    int highest_fd              = -1;
+    int num_bytes               = 0;
+    int ringbuf_cnt             = 0;
+    char recvbuf[RECVBUF_SIZE]  = {0};
+    char pcrebuf[RECVBUF_SIZE]  = {0};
     ringbuffer_t * recv_ringbuf = NULL;
+    struct rlimit rl;
+    fd_set readfds;
 
     /* initialize globals*/
     log_fd = -1;
     num_pcre_inputs = 0;
     pcre_inputs = NULL;
     debugging = 0;
+    if_list = NULL;
 
     memset(&log_addr, 0, sizeof(log_addr));
     memset(&rl, 0, sizeof(rl));
 
-    /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr */
-    if (argc < 5) {
-        usage();
-        goto cleanup;
+    /* capture environment configurations */
+    listenstr           = getenv("GK_LISTENSTR");
+    redirectstr         = getenv("GK_REDIRECTSTR");
+    logsrvstr           = getenv("GK_LOGSRV");
+    capsrvstr           = getenv("GK_CAPHOST");
+    alarmvalstr         = getenv("GK_ALARM");
+    chrootstr           = getenv("GK_CHROOT");
+    randenvstr          = getenv("GK_RANDENV");
+    rlimitstr           = getenv("GK_RLIMIT");
+    debugstr            = getenv("GK_DEBUG");
+    randfdstr           = getenv("GK_RANDFD");
+    regex_input_fname   = getenv("GK_INPUT_REGEXFILE");
+    regex_output_fname  = getenv("GK_OUTPUT_REGEXFILE");
+    keyfile             = getenv("GK_KEYFILE");
+    blacklist_ip_fname  = getenv("GK_BLACKLIST_IP");
+
+    /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr
+     * unless we have at least listenstr and redirectstr from env
+     */
+    if (listenstr == NULL || redirectstr == NULL) {
+        if (argc < 5) {
+            usage();
+            goto cleanup;
+        }
     }
 
     /* setup RNG */
     f = open("/dev/urandom", O_RDONLY, NULL);
     if (f == -1 || sizeof(seed) != read(f, &seed, sizeof(seed))) {
-        seed = time(0);
+        Log("RNG initialized with time");
+        seed = time(0) + getpid();
     }
     srand(seed);
     if (f != -1) {
@@ -122,28 +154,37 @@ int main(int argc, char * argv[])
         f = -1;
     }
     seed = 0;
-    build_rand_envp();
+
     /* avoid zombie children */
     if (signal(SIGCHLD, sigchld) == SIG_ERR) {
         Log("Unable to set SIGCHLD handler");
         goto cleanup;
     }
 
-    /*TODO add support for arguments from environment variables
-    GK_LISTENSTR
-    GK_REDIRECTSTR
-    GK_LOGSRV
-    GK_CAPHOST
-    GK_ALARM
-    GK_CHROOT
-    GK_RANDENV
-    GK_RLIMIT
-    GK_DEBUG
-    GK_RANDFD
-    GK_INPUT_REGEXFILE
-    GK_OUTPUT_REGEXFILE
-    GK_KEYFILE*/
-    while ((c = getopt(argc, argv, "hDtI:O:l:r:k:o:c:a:dfe")) != -1) {
+    /* alarm parse */
+    if (alarmvalstr != NULL) {
+        alarmval = atoi(alarmvalstr);
+    }
+    
+    /* flags parse */
+    if (randenvstr != NULL) {
+        randenv = 1;
+    }
+
+    if (debugstr != NULL) {
+        debugging = 1;
+    }
+
+    if (randfdstr != NULL) {
+        randfd = 1;
+    }
+
+    if (rlimitstr != NULL) {
+        rlimit = 1;
+    }
+
+    /* cmdline parse, environment configurations take precident */
+    while ((c = getopt(argc, argv, "hDtI:O:l:r:k:o:c:a:dfeb:")) != -1) {
         switch (c) {
         case 'h':
             /* help and exit*/
@@ -151,58 +192,92 @@ int main(int argc, char * argv[])
             goto cleanup;
         case 'l':
             /* save off listen argument string -- required*/
-            listenstr = optarg;
+            if (listenstr == NULL) {
+                listenstr = optarg;    
+            }
             break;
         case 'r':
             /* save off redirect argument string -- required*/
-            redirectstr = optarg;
+            if (redirectstr == NULL) {
+                redirectstr = optarg;    
+            }
             break;
         case 'k':
             /* save off keyfile argument (optional) */
-            keyfile = optarg;
+            if (keyfile == NULL) {
+                keyfile = optarg;
+            }
             break;
         case 'o':
-            logsrvstr = optarg;
+            /* logging server string of where to send Log() function data */
+            if (logsrvstr == NULL) {
+                logsrvstr = optarg;
+            }
             break;
         case 'c':
-            capsrvstr = optarg;
+            /* capture server string of where to send intercepted data */
+            if (capsrvstr == NULL) {
+                capsrvstr = optarg;
+            }
             break;
         case 'a':
-            alarmval = atoi(optarg);
+            /* alarm string for alarm() call, convert to int val */
+            if (alarmvalstr == NULL) {
+                alarmval = atoi(optarg);
+            }
             break;
         case 'e':
-            rand_env = 1;
+            /* flag to enable randomized envp on fork/exec */
+            if (randenvstr == NULL) {
+                randenv = 1;
+            }
             break;
         case 'D':
-            debugging = 1;
+            /* Give me all the output */
+            if (debugstr == NULL) {
+                debugging = 1;
+            }
             break;
         case 'd':
-            /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
-             * umask will render files unusable without a chmod first
-             */
-            umask(0);
-            setrlimit(RLIMIT_FSIZE, &rl);
+            /* flag, to block disk writes with rlimit and umask calls */
+            if (rlimitstr == NULL) {
+                rlimit = 1;
+            }
             break;
         case 't':
             /* we don't need root to chroot if we unshare the user namespace */
-            unshare(CLONE_NEWUSER);
-            chroot(optarg);
+            if (chrootstr == NULL) {
+                chrootstr = optarg;
+            }
             break;
         case 'f':
             /* this will cause later opens after exec to have unexpected fd numbers, we don't close these */
-            for (i = 0; i < (unsigned int) ((rand() % 100) + 1); i++) {
-                open("/dev/urandom", O_RDONLY, NULL);
+            if (randfdstr == NULL) {
+                randfd = 1;
             }
             break;
         case 'I':
-            regex_input_fname = strdup(optarg);
+            /* file name for input pcre filterng */
+            if (regex_input_fname == NULL) {
+                regex_input_fname = optarg;
+            }
             break;
         case 'O':
-            regex_output_fname = strdup(optarg);
+            /* file name for output pcre filterng */
+            if (regex_output_fname == NULL) {
+                regex_output_fname = optarg;
+            }
+            break;
+        case 'b':
+            /* filename for blacklisted IP's for filtering */
+            if (blacklist_ip_fname == NULL) {
+                blacklist_ip_fname = optarg;    
+            }
             break;
         case '?':
+            /* help */
             usage();
-            if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt || 'I' == optopt || 'O' == optopt)
+            if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt || 'I' == optopt || 'O' == optopt || 'b' == optopt)
                 Log("Option '-%c' requires an argument\n", optopt);
             else if (isprint(optopt))
                 Log("Unknown options '-%c'\n", optopt);
@@ -256,13 +331,31 @@ int main(int argc, char * argv[])
         recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
     }
 
+    /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
+       umask will render files unusable without a chmod first */
+    if (rlimit == 1) {
+        umask(0);
+        setrlimit(RLIMIT_FSIZE, &rl);
+    }
+
+    if (chrootstr != NULL) {
+        unshare(CLONE_NEWUSER);
+        chroot(chrootstr);
+    }
+
+    if (randfd == 1) {
+        for (i = 0; i < (unsigned int) ((rand() % 100) + 1); i++) {
+           open("/dev/urandom", O_RDONLY, NULL);
+        }
+    }
+
     /* setup local listener fd's, will block to accept connections */
     if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE) {
         goto cleanup;
     }
 
     /* setup remote fd's */
-    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, rand_env ? REMOTE_RAND_ENV : REMOTE) == FAILURE) {
+    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, randenv ? REMOTE_RAND_ENV : REMOTE) == FAILURE) {
         goto cleanup;
     }
 
@@ -343,8 +436,6 @@ cleanup:
         close(remote_fd_w);
     if (log_fd != -1)
         close(log_fd);
-    if (regex_fname)
-        free(regex_fname);
     if (recv_ringbuf)
         ringbuffer_free(recv_ringbuf);
     free_list(pcre_inputs);

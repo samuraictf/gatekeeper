@@ -91,4 +91,12 @@ int list_add(pcre *re, pcre_list_t **head);
 void free_list(pcre_list_t *list);
 int parse_pcre_inputs(const char *fname);
 int check_for_match(char *buf, int num_bytes);
+#else
+extern int log_fd;
+extern struct sockaddr_in log_addr;
+extern pcre_list_t *pcre_inputs;
+extern int num_pcre_inputs;
+extern int debugging;
+extern int verbose;
+extern pinterface_ip_list if_list; 
 #endif
