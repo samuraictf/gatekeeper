@@ -145,7 +145,7 @@ int main(int argc, char * argv[])
     /* setup RNG */
     f = open("/dev/urandom", O_RDONLY, NULL);
     if (f == -1 || sizeof(seed) != read(f, &seed, sizeof(seed))) {
-        Log("RNG initialized with time");
+        Log("RNG initialized with time\n");
         seed = time(0) + getpid();
     }
     srand(seed);
@@ -157,7 +157,7 @@ int main(int argc, char * argv[])
 
     /* avoid zombie children */
     if (signal(SIGCHLD, sigchld) == SIG_ERR) {
-        Log("Unable to set SIGCHLD handler");
+        Log("Unable to set SIGCHLD handler\n");
         goto cleanup;
     }
 
@@ -313,6 +313,15 @@ int main(int argc, char * argv[])
         }
     }
 
+    /* create the recv ring buffer if we have pcre inputs to match against*/
+    if (num_pcre_inputs > 0) {
+        recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
+        if (recv_ringbuf == NULL) {
+            Log("Error creating ring buffer\n");
+            goto cleanup;
+        }   
+    }
+
     /* setup logging server globals */
     if (logsrvstr != NULL) {
         if (setup_logsocket(logsrvstr) == FAILURE) {
@@ -321,32 +330,24 @@ int main(int argc, char * argv[])
         }
     }
 
-    /* set alarm if one was specified */
-    if (alarmval != 0) {
-        alarm(alarmval);
-    }
-
-    /* create the recv ring buffer if we have pcre inputs to match against*/
-    if (num_pcre_inputs > 0) {
-        recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
+    if (randfd == 1) {
+        for (i = 0; i < (unsigned int) ((rand() % 500) + 20); i++) {
+           open("/dev/urandom", O_RDONLY, NULL);
+        }
     }
 
     /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
        umask will render files unusable without a chmod first */
     if (rlimit == 1) {
+        Log("Setting RLIMIT_FSIZE\n")
         umask(0);
         setrlimit(RLIMIT_FSIZE, &rl);
     }
 
+    /* chroot! */
     if (chrootstr != NULL) {
         unshare(CLONE_NEWUSER);
         chroot(chrootstr);
-    }
-
-    if (randfd == 1) {
-        for (i = 0; i < (unsigned int) ((rand() % 100) + 1); i++) {
-           open("/dev/urandom", O_RDONLY, NULL);
-        }
     }
 
     /* setup local listener fd's, will block to accept connections */
@@ -359,12 +360,24 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
+    /* set alarm if one was specified, must be after connection establised to be in
+       correct fork-ed process */
+    if (alarmval != 0) {
+        alarm(alarmval);
+    }
+
+    /* check for IP blacklist */
+
     /* start the pumps */
     if (listen_fd_r > remote_fd_r) {
         highest_fd = listen_fd_r;
     } else {
         highest_fd = remote_fd_r;
     }
+
+    /*  listen_fd_r -> remote_fd_w
+        remote_fd_r -> listen_fd_w */
+
     while (1) {
         /* move out of loop and memcpy from tmp variable instead? maybe later. */
         FD_ZERO(&readfds);

@@ -409,6 +409,10 @@ int accept_udp_connection(int client_fd, int address_family)
     return client_fd;
 }
 
+/* this function buils a singlely linked list of interface ipv4/6 addresses 
+ * it populates the global pinterface_ip_list if_list as the head of the list
+ */
+
 int get_host_ip_addresses()
 {
     struct ifaddrs *myaddrs, *ifa;
