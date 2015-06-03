@@ -515,7 +515,6 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     unsigned int i = 0;
     char * tmp = NULL;
     char * last_arg = NULL;
-    char * arg = NULL;
     char ** envp = NULL;
     char ** argv = NULL;
 
@@ -901,6 +900,6 @@ cleanup:
 }
 
 void inotify_sig_handler(int signo) {
-    Log("inotify file signal caught\n");
+    Log("inotify file signal caught: %i\n", signo);
 }
 #endif
