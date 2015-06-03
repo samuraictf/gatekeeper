@@ -573,7 +573,6 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
 
                 last_arg = args_start;
                 tmp = args_start;
-                // XXX:
                 for (i = 0; i < arg_count + 1 && *tmp; tmp++) {
                     if (*tmp == ' ') {
                         *tmp = '\0';
