@@ -18,8 +18,9 @@
 #include <sched.h>
 #include <time.h>
 
-#ifdef _LINUX
+#ifdef _INOTIFY
 #include <sys/inotify.h>
+#include <linux/limits.h>
 #endif
 #include <sys/resource.h>
 #include <sys/types.h>
@@ -41,9 +42,10 @@
 #define REMOTE 0
 #define REMOTE_RAND_ENV 2
 #define RECVBUF_SIZE 4096
+#ifdef _INOTIFY
 #define EVENT_SIZE  (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (100 * (EVENT_SIZE + PATH_MAX))
-
+#endif
 /* typedefs / structs */
 typedef struct pcre_list pcre_list_t;
 struct pcre_list {
@@ -74,8 +76,10 @@ void usage(void);
 void Log(char *format, ...);
 int main(int argc, char * argv[]);
 void sigchld();
+#ifdef _INOTIFY
 void start_inotify_handler(char * keyfile);
-void inotify_sig_sandler(int signo);
+void inotify_sig_handler(int signo);
+#endif
 int setup_logsocket(char * logsrvstr);
 int setup_connection(char * listenstr, int * out_fd_r, int * out_fd_w, int type);
 int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned short * port, int address_family);

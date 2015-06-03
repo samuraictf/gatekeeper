@@ -4,8 +4,8 @@ CFLAGS += -O0 -ggdb \
 	-Wall -Wextra \
 	-Wcast-align -Wpointer-arith -Wmissing-noreturn -Wmissing-format-attribute -Wredundant-decls \
 	-Wunreachable-code -Winline -Wfloat-equal \
-	-D_LINUX
-
+	-D_INOTIFY
+	
 LDFLAGS += -lpcre
 
 all:

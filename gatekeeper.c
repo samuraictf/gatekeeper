@@ -836,7 +836,7 @@ char ** build_rand_envp()
    it will fork and run in a loop watching for inotify events on the file
    a new signal handler will be registered in the parent for SIGUSR1 to
    handle inotify events */
-
+#ifdef _INOTIFY
 void start_inotify_handler(char * keyfile) {
     int inotify_fd = -1;
     int watch_fd = -1;
@@ -848,7 +848,7 @@ void start_inotify_handler(char * keyfile) {
 
     sigemptyset(&sig.sa_mask);
     sig.sa_flags = 0;
-    sig.sa_handler = inotify_sig_sandler;
+    sig.sa_handler = inotify_sig_handler;
 
     inotify_fd = inotify_init();
     if (inotify_fd < 0) {
@@ -875,10 +875,12 @@ void start_inotify_handler(char * keyfile) {
             struct inotify_event *event = (struct inotify_event *) &buffer[i];
             if ( event->len ) {
                 if ( event->mask & IN_ACCESS ) {
-                    printf("File %s was accessed\n", event->name);
+                    Log("File %s was accessed\n", event->name);
+                    kill(ppid, SIGUSR1);
                 }   
                 else if ( event->mask & IN_OPEN ) {
-                    printf("File %s was opened\n", event->name);
+                    Log("File %s was opened\n", event->name);
+                    kill(ppid, SIGUSR1);
                 }
             }
             i += EVENT_SIZE + event->len;
@@ -898,6 +900,7 @@ cleanup:
     }
 }
 
-void inotify_sig_sandler(int signo) {
+void inotify_sig_handler(int signo) {
     Log("inotify file signal caught\n");
 }
+#endif
