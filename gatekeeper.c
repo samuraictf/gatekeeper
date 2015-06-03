@@ -1,7 +1,7 @@
 #include "gatekeeper.h"
 
 int log_fd;
-struct sockaddr_in log_addr;
+struct in_addr log_addr;
 pcre_list_t *pcre_inputs;
 int num_pcre_inputs;
 int debugging;
@@ -459,12 +459,32 @@ void sigchld()
  */
 int setup_logsocket(char * logsrvstr)
 {
-    log_addr.sin_family = AF_INET;
-    if (parse_address_string(logsrvstr, &log_addr.sin_addr.s_addr, sizeof(log_addr.sin_addr.s_addr), &log_addr.sin_port, AF_INET) == SUCCESS) {
-        log_fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if (log_fd == -1)
-            return FAILURE;
+    char * addr_start = NULL;
+    char * port_start = NULL;
+    unsigned short port = 0;
+    
+    /* parse logsrvstr manually */
+    if (logsrvstr == NULL) {
+        return FAILURE;
     }
+    addr_start = logsrvstr;
+    port_start = strchr(addr_start, ':');
+    if (port_start == NULL) {
+        return FAILURE;
+    }
+    *port_start = '\x00';
+    port_start++;
+    if (inet_pton(AF_INET, addr_start, &log_addr) != 1) {
+        Log("Invalid IP address specified in address string.\n");
+        return FAILURE;
+    }
+    port = (unsigned short)atoi(port_start);
+    log_fd = connect_ipv4(SOCK_DGRAM, port, &log_addr);
+    if (log_fd == -1) {
+        return FAILURE;
+    }
+    /* now that the log socket is connected, we can use read()/write() */
+        
     return SUCCESS;
 }
 

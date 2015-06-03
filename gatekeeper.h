@@ -62,7 +62,7 @@ typedef struct _interface_ip_list {
 
 /* Globals */
 extern int log_fd;
-extern struct sockaddr_in log_addr;
+extern struct in_addr log_addr;
 extern pcre_list_t *pcre_inputs;
 extern int num_pcre_inputs;
 extern int debugging;
