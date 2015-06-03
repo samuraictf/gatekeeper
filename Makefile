@@ -3,7 +3,8 @@ CFLAGS += -O0 -ggdb \
 	-pedantic-errors \
 	-Wall -Wextra \
 	-Wcast-align -Wpointer-arith -Wmissing-noreturn -Wmissing-format-attribute -Wredundant-decls \
-	-Wunreachable-code -Winline -Wfloat-equal
+	-Wunreachable-code -Winline -Wfloat-equal \
+	-D_LINUX
 
 LDFLAGS += -lpcre
 

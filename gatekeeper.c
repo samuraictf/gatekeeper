@@ -50,7 +50,7 @@ void usage(void)
     printf("      -O <optional path to text file of regexs to match OUTPUT traffic against> GK_OUTPUT_REGEXFILE\n");
     printf("      -b <optional path to text file of IP's to blacklist> GK_BLACKLIST_IP\n");
     printf("      -k <optional path to key file> GK_KEYFILE\n\n");
-    printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -l 10.0.0.2:2090\n");
+    printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -o 10.0.0.2:2090\n");
     printf("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
     printf("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
 }
@@ -165,7 +165,7 @@ int main(int argc, char * argv[])
     if (alarmvalstr != NULL) {
         alarmval = atoi(alarmvalstr);
     }
-    
+
     /* flags parse */
     if (randenvstr != NULL) {
         randenv = 1;
@@ -193,13 +193,13 @@ int main(int argc, char * argv[])
         case 'l':
             /* save off listen argument string -- required*/
             if (listenstr == NULL) {
-                listenstr = optarg;    
+                listenstr = optarg;
             }
             break;
         case 'r':
             /* save off redirect argument string -- required*/
             if (redirectstr == NULL) {
-                redirectstr = optarg;    
+                redirectstr = optarg;
             }
             break;
         case 'k':
@@ -271,7 +271,7 @@ int main(int argc, char * argv[])
         case 'b':
             /* filename for blacklisted IP's for filtering */
             if (blacklist_ip_fname == NULL) {
-                blacklist_ip_fname = optarg;    
+                blacklist_ip_fname = optarg;
             }
             break;
         case '?':
@@ -319,7 +319,7 @@ int main(int argc, char * argv[])
         if (recv_ringbuf == NULL) {
             Log("Error creating ring buffer\n");
             goto cleanup;
-        }   
+        }
     }
 
     /* setup logging server globals */
@@ -330,16 +330,24 @@ int main(int argc, char * argv[])
         }
     }
 
+    /* open many file descriptors to "randomize" the real i/o fd's used by
+       forked children */
     if (randfd == 1) {
         for (i = 0; i < (unsigned int) ((rand() % 500) + 20); i++) {
-           open("/dev/urandom", O_RDONLY, NULL);
+            open("/dev/urandom", O_RDONLY, NULL);
         }
+    }
+
+    if (keyfile != NULL) {
+#ifdef _LINUX
+        start_inotify_handler(keyfile);
+#endif
     }
 
     /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
        umask will render files unusable without a chmod first */
     if (rlimit == 1) {
-        Log("Setting RLIMIT_FSIZE\n")
+        Log("Setting RLIMIT_FSIZE\n");
         umask(0);
         setrlimit(RLIMIT_FSIZE, &rl);
     }
@@ -822,4 +830,74 @@ char ** build_rand_envp()
     }
     ret[i] = NULL;
     return ret;
+}
+
+/* this function will setup an inotify watch on the specified file path
+   it will fork and run in a loop watching for inotify events on the file
+   a new signal handler will be registered in the parent for SIGUSR1 to
+   handle inotify events */
+
+void start_inotify_handler(char * keyfile) {
+    int inotify_fd = -1;
+    int watch_fd = -1;
+    int i = 0;
+    int length = -1;
+    char buffer[EVENT_BUF_LEN];
+    pid_t ppid = getpid();
+    struct sigaction sig;
+
+    sigemptyset(&sig.sa_mask);
+    sig.sa_flags = 0;
+    sig.sa_handler = inotify_sig_sandler;
+
+    inotify_fd = inotify_init();
+    if (inotify_fd < 0) {
+        Log("Error inotify_init()\n");
+        goto cleanup;
+    }
+
+    watch_fd = inotify_add_watch(inotify_fd, keyfile, IN_OPEN | IN_ACCESS);
+    if (watch_fd < 0) {
+        Log("Error add watch: %s\n", keyfile);
+        goto cleanup;
+    }
+
+    if (fork() == 0) {
+        /* Child code, loop blocking for inotify events */
+        i = 0;
+        length = read( watch_fd, buffer, EVENT_BUF_LEN ); 
+        if ( length < 0 ) {
+            Log("inotify read failure\n");
+            goto cleanup;
+        }  
+
+        while ( i < length ) {
+            struct inotify_event *event = (struct inotify_event *) &buffer[i];
+            if ( event->len ) {
+                if ( event->mask & IN_ACCESS ) {
+                    printf("File %s was accessed\n", event->name);
+                }   
+                else if ( event->mask & IN_OPEN ) {
+                    printf("File %s was opened\n", event->name);
+                }
+            }
+            i += EVENT_SIZE + event->len;
+        }
+    } else {
+        if (sigaction(SIGUSR1, &sig, NULL) == -1){
+            Log("failure registering sigaction for SIGUSR1") ;     
+        }
+    }
+
+cleanup:
+    if (watch_fd != -1) {
+        inotify_rm_watch(inotify_fd, watch_fd);
+    }
+    if (inotify_fd != -1) {
+        close(inotify_fd);
+    }
+}
+
+void inotify_sig_sandler(int signo) {
+    Log("inotify file signal caught\n");
 }
