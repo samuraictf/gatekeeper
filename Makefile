@@ -27,7 +27,6 @@ CFLAGS      += 	-fstack-protector-all \
 				-D_FORTIFY_SOURCE=2 \
 				-pedantic-errors \
 				-Wall -Wextra \
-				-Wcast-align \
 				-Wpointer-arith \
 				-Wmissing-noreturn \
 				-Wmissing-format-attribute \
@@ -54,6 +53,7 @@ all: $(OUT)
 $(OUT): $(OBJ_FILES)
 	@echo Building binary $@ from [ $^ ]
 	$(CXX) $(LDFLAGS) $^ -o $@
+	$(CXX) $(LDFLAGS) $^ -shared -o $@.so
 
 # Compile source files
 # These rules are rewritten into the dependencies file
