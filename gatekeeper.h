@@ -2,50 +2,48 @@
 #define _GATEKEEPER_H
 #define _GNU_SOURCE
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdarg.h>
-#include <string.h>
-#include <errno.h>
-#include <netdb.h>
-#include <pwd.h>
-#include <signal.h>
+#include <arpa/inet.h>
 #include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <grp.h>
 #include <ifaddrs.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <pcre.h>
+#include <pwd.h>
 #include <sched.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <time.h>
+#include <unistd.h>
 
 #ifdef _INOTIFY
-#include <sys/inotify.h>
-#include <linux/limits.h>
 #endif
-#include <sys/resource.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <sys/time.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <time.h>
-#include <pcre.h>
+
 #include "ringbuffer.h"
+#include "ctf.h"
 
 /* Defines */
-#define FAILURE -1
-#define SUCCESS 1
+#define FAILURE EXIT_FAILURE
+#define SUCCESS EXIT_SUCCESS
 #define LOCAL 1
 #define REMOTE 0
 #define REMOTE_RAND_ENV 2
 #define RECVBUF_SIZE 4096
-#ifdef _INOTIFY
-#define EVENT_SIZE  (sizeof(struct inotify_event))
-#define EVENT_BUF_LEN (100 * (EVENT_SIZE + PATH_MAX))
-#endif
+
+
 /* typedefs / structs */
 typedef struct pcre_list pcre_list_t;
 struct pcre_list {
@@ -63,26 +61,20 @@ typedef struct _interface_ip_list {
 } interface_ip_list, *pinterface_ip_list;
 
 /* Globals */
-int log_fd;
-struct sockaddr_in log_addr;
-pcre_list_t *pcre_inputs;
-int num_pcre_inputs;
-int debugging;
-int verbose;
-pinterface_ip_list if_list;
+extern int log_fd;
+extern struct sockaddr_in log_addr;
+extern pcre_list_t *pcre_inputs;
+extern int num_pcre_inputs;
+extern int debugging;
+extern int verbose;
+extern pinterface_ip_list if_list;
 
 /* Prototypes */
 void usage(void);
-
-__attribute__((format(printf, 1, 2)))
-void Log(const char *format, ...);
+#define Log(...) ctf_writef(log_fd, __VA_ARGS__)
 
 int main(int argc, char * argv[]);
 void sigchld();
-#ifdef _INOTIFY
-void start_inotify_handler(char * keyfile);
-void inotify_sig_handler(int signo);
-#endif
 int setup_logsocket(char * logsrvstr);
 int setup_connection(char * listenstr, int * out_fd_r, int * out_fd_w, int type);
 int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned short * port, int address_family);
@@ -103,12 +95,4 @@ int list_add(pcre *re, pcre_list_t **head);
 void free_list(pcre_list_t *list);
 int parse_pcre_inputs(const char *fname);
 int check_for_match(char *buf, int num_bytes);
-#else
-extern int log_fd;
-extern struct sockaddr_in log_addr;
-extern pcre_list_t *pcre_inputs;
-extern int num_pcre_inputs;
-extern int debugging;
-extern int verbose;
-extern pinterface_ip_list if_list;
 #endif

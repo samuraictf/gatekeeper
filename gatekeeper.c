@@ -1,31 +1,13 @@
 #include "gatekeeper.h"
 
-/*
- * Log functions takes in a format string and variable arguments.
- * It sends the resulting printf off to a UDP socket stored in log_buf
- * to a host/port specified in log_addr.
- *
- * We need to do this because writing to stdout/err will mess with with clients
- * that use these FD's. Basically, no printing. K?
- *
- * Will break this rule ONLY if log_fd == -1 (no log server specified)
- * and debugging == 1 (-D specified on cmd line).
- */
-__attribute__((format(printf, 1, 2)))
-void Log(const char *format, ...)
-{
-    va_list ap;
-    char log_buf[1024];
-    va_start(ap, format);
-    vsnprintf(log_buf, sizeof(log_buf) - 1, format, ap);
-    /* ONLY output to stderr if we are debugging AND no log server was specified */
-    if (log_fd == -1 && debugging == 1) {
-        fprintf(stderr, "%s", log_buf);
-    } else {
-        sendto(log_fd, log_buf, strlen(log_buf), 0, (struct sockaddr*)&log_addr, sizeof(log_addr));
-    }
-    va_end(ap);
-}
+int log_fd;
+struct sockaddr_in log_addr;
+pcre_list_t *pcre_inputs;
+int num_pcre_inputs;
+int debugging;
+int verbose;
+pinterface_ip_list if_list;
+
 
 /*
  * Prints usage and returns. Does not exit.
@@ -107,7 +89,6 @@ int main(int argc, char * argv[])
     fd_set readfds;
 
     /* initialize globals*/
-    log_fd = -1;
     num_pcre_inputs = 0;
     pcre_inputs = NULL;
     debugging = 0;
@@ -831,75 +812,3 @@ char ** build_rand_envp()
     return ret;
 }
 
-/* this function will setup an inotify watch on the specified file path
-   it will fork and run in a loop watching for inotify events on the file
-   a new signal handler will be registered in the parent for SIGUSR1 to
-   handle inotify events */
-#ifdef _INOTIFY
-void start_inotify_handler(char * keyfile) {
-    int inotify_fd = -1;
-    int watch_fd = -1;
-    int i = 0;
-    int length = -1;
-    char buffer[EVENT_BUF_LEN];
-    pid_t ppid = getpid();
-    struct sigaction sig;
-
-    sigemptyset(&sig.sa_mask);
-    sig.sa_flags = 0;
-    sig.sa_handler = inotify_sig_handler;
-
-    inotify_fd = inotify_init();
-    if (inotify_fd < 0) {
-        Log("Error inotify_init()\n");
-        goto cleanup;
-    }
-
-    watch_fd = inotify_add_watch(inotify_fd, keyfile, IN_OPEN | IN_ACCESS);
-    if (watch_fd < 0) {
-        Log("Error add watch: %s\n", keyfile);
-        goto cleanup;
-    }
-
-    if (fork() == 0) {
-        /* Child code, loop blocking for inotify events */
-        i = 0;
-        length = read( watch_fd, buffer, EVENT_BUF_LEN );
-        if ( length < 0 ) {
-            Log("inotify read failure\n");
-            goto cleanup;
-        }
-
-        while ( i < length ) {
-            struct inotify_event *event = (struct inotify_event *) &buffer[i];
-            if ( event->len ) {
-                if ( event->mask & IN_ACCESS ) {
-                    Log("File %s was accessed\n", event->name);
-                    kill(ppid, SIGUSR1);
-                }
-                else if ( event->mask & IN_OPEN ) {
-                    Log("File %s was opened\n", event->name);
-                    kill(ppid, SIGUSR1);
-                }
-            }
-            i += EVENT_SIZE + event->len;
-        }
-    } else {
-        if (sigaction(SIGUSR1, &sig, NULL) == -1){
-            Log("failure registering sigaction for SIGUSR1") ;
-        }
-    }
-
-cleanup:
-    if (watch_fd != -1) {
-        inotify_rm_watch(inotify_fd, watch_fd);
-    }
-    if (inotify_fd != -1) {
-        close(inotify_fd);
-    }
-}
-
-void inotify_sig_handler(int signo) {
-    Log("inotify file signal caught: %i\n", signo);
-}
-#endif
