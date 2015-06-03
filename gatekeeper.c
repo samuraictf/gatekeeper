@@ -8,7 +8,6 @@ int debugging;
 int verbose;
 pinterface_ip_list if_list;
 
-
 /*
  * Prints usage and returns. Does not exit.
  */
@@ -31,8 +30,7 @@ void usage(void)
     printf("      -I <optional path to text file of regexs to match INPUT traffic against> GK_INPUT_REGEXFILE\n");
     printf("      -O <optional path to text file of regexs to match OUTPUT traffic against> GK_OUTPUT_REGEXFILE\n");
     printf("      -b <optional path to text file of IP's to blacklist> GK_BLACKLIST_IP\n");
-    printf("      -k <optional path to key file> GK_KEYFILE\n\n");
-    printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -k /home/keys/atmail -o 10.0.0.2:2090\n");
+    printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -o 10.0.0.2:2090\n");
     printf("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
     printf("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
 }
@@ -65,7 +63,6 @@ int main(int argc, char * argv[])
     char * randfdstr            = NULL;
     char * regex_input_fname    = NULL;
     char * regex_output_fname   = NULL;
-    char * keyfile              = NULL;
     char * blacklist_ip_fname   = NULL;
     int c                       = -1;
     int f                       = -1;
@@ -110,7 +107,6 @@ int main(int argc, char * argv[])
     randfdstr           = getenv("GK_RANDFD");
     regex_input_fname   = getenv("GK_INPUT_REGEXFILE");
     regex_output_fname  = getenv("GK_OUTPUT_REGEXFILE");
-    keyfile             = getenv("GK_KEYFILE");
     blacklist_ip_fname  = getenv("GK_BLACKLIST_IP");
 
     /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr
@@ -181,12 +177,6 @@ int main(int argc, char * argv[])
             /* save off redirect argument string -- required*/
             if (redirectstr == NULL) {
                 redirectstr = optarg;
-            }
-            break;
-        case 'k':
-            /* save off keyfile argument (optional) */
-            if (keyfile == NULL) {
-                keyfile = optarg;
             }
             break;
         case 'o':
@@ -317,12 +307,6 @@ int main(int argc, char * argv[])
         for (i = 0; i < (unsigned int) ((rand() % 500) + 20); i++) {
             open("/dev/urandom", O_RDONLY, NULL);
         }
-    }
-
-    if (keyfile != NULL) {
-#ifdef _LINUX
-        start_inotify_handler(keyfile);
-#endif
     }
 
     /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ

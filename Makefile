@@ -35,9 +35,8 @@ CFLAGS      += 	-fstack-protector-all \
 				-Wunreachable-code \
 				-Winline \
 				-Wfloat-equal \
-				-Werror \
-				-D_INOTIFY
-LDFLAGS     += -z noexecstack -z relro -z now -pie
+				-Werror 
+LDFLAGS     += -Wl,-z,now -Wl,-z,relro -Wl,-z,noexecstack -pie
 
 # -- Input Files --
 C_FILES   = $(wildcard $(SRC)/*.c)

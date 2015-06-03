@@ -26,11 +26,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
-#include <time.h>
 #include <unistd.h>
-
-#ifdef _INOTIFY
-#endif
 
 #include "ringbuffer.h"
 #include "ctf.h"
