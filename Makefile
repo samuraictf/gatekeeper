@@ -10,6 +10,7 @@ OUT ?= gatekeeper
 SRC ?= .
 INCLUDES = -I.
 LDFLAGS = -L.
+CFLAGS += $(INCLUDES)
 
 # -- Libraries --
 LDFLAGS += -lpcre
@@ -23,7 +24,7 @@ CFLAGS      += 	-fstack-protector-all \
 				-Wformat \
 				-Wformat=2 \
 				-Wformat-security \
-				-fPIE \
+				-fPIE -fPIC \
 				-D_FORTIFY_SOURCE=2 \
 				-pedantic-errors \
 				-Wall -Wextra \
@@ -36,7 +37,7 @@ CFLAGS      += 	-fstack-protector-all \
 				-Wfloat-equal \
 				-Werror \
 				-D_INOTIFY
-CFLAGS 		+= $(INCLUDES)
+LDFLAGS     += -z noexecstack -z relro -z now -pie
 
 # -- Input Files --
 C_FILES   = $(wildcard $(SRC)/*.c)
