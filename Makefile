@@ -9,7 +9,10 @@ OUT ?= gatekeeper
 # -- Directories --
 SRC ?= .
 INCLUDES = -I.
-LDFLAGS = -L. -lpcre
+LDFLAGS = -L.
+
+# -- Libraries --
+LDFLAGS += -lpcre
 
 # -- Flags --
 ifdef DEBUG
@@ -32,6 +35,7 @@ CFLAGS      += 	-fstack-protector-all \
 				-Wunreachable-code \
 				-Winline \
 				-Wfloat-equal \
+				-Werror \
 				-D_INOTIFY
 CFLAGS 		+= $(INCLUDES)
 
