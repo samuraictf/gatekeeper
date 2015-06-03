@@ -11,8 +11,8 @@
  * Will break this rule ONLY if log_fd == -1 (no log server specified)
  * and debugging == 1 (-D specified on cmd line).
  */
-
-void Log(char *format, ...)
+__attribute__((format(printf, 1, 2)))
+void Log(const char *format, ...)
 {
     va_list ap;
     char log_buf[1024];
@@ -20,7 +20,7 @@ void Log(char *format, ...)
     vsnprintf(log_buf, sizeof(log_buf) - 1, format, ap);
     /* ONLY output to stderr if we are debugging AND no log server was specified */
     if (log_fd == -1 && debugging == 1) {
-        fprintf(stderr, log_buf);
+        fprintf(stderr, "%s", log_buf);
     } else {
         sendto(log_fd, log_buf, strlen(log_buf), 0, (struct sockaddr*)&log_addr, sizeof(log_addr));
     }
@@ -865,11 +865,11 @@ void start_inotify_handler(char * keyfile) {
     if (fork() == 0) {
         /* Child code, loop blocking for inotify events */
         i = 0;
-        length = read( watch_fd, buffer, EVENT_BUF_LEN ); 
+        length = read( watch_fd, buffer, EVENT_BUF_LEN );
         if ( length < 0 ) {
             Log("inotify read failure\n");
             goto cleanup;
-        }  
+        }
 
         while ( i < length ) {
             struct inotify_event *event = (struct inotify_event *) &buffer[i];
@@ -877,7 +877,7 @@ void start_inotify_handler(char * keyfile) {
                 if ( event->mask & IN_ACCESS ) {
                     Log("File %s was accessed\n", event->name);
                     kill(ppid, SIGUSR1);
-                }   
+                }
                 else if ( event->mask & IN_OPEN ) {
                     Log("File %s was opened\n", event->name);
                     kill(ppid, SIGUSR1);
@@ -887,7 +887,7 @@ void start_inotify_handler(char * keyfile) {
         }
     } else {
         if (sigaction(SIGUSR1, &sig, NULL) == -1){
-            Log("failure registering sigaction for SIGUSR1") ;     
+            Log("failure registering sigaction for SIGUSR1") ;
         }
     }
 

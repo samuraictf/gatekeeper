@@ -73,7 +73,10 @@ pinterface_ip_list if_list;
 
 /* Prototypes */
 void usage(void);
-void Log(char *format, ...);
+
+__attribute__((format(printf, 1, 2)))
+void Log(const char *format, ...);
+
 int main(int argc, char * argv[]);
 void sigchld();
 #ifdef _INOTIFY
