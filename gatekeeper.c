@@ -2,8 +2,6 @@
 
 int log_fd;
 struct in_addr log_addr;
-pcre_list_t *pcre_inputs;
-int num_pcre_inputs;
 int debugging;
 int verbose;
 pinterface_ip_list if_list;
@@ -82,12 +80,12 @@ int main(int argc, char * argv[])
     char recvbuf[RECVBUF_SIZE]  = {0};
     char pcrebuf[RECVBUF_SIZE]  = {0};
     ringbuffer_t * recv_ringbuf = NULL;
+    pcre_list_t * in_pcre_list  = NULL;
+    pcre_list_t * out_pcre_list = NULL;
     struct rlimit rl;
     fd_set readfds;
 
     /* initialize globals*/
-    num_pcre_inputs = 0;
-    pcre_inputs = NULL;
     debugging = 0;
     if_list = NULL;
 
@@ -271,26 +269,23 @@ int main(int argc, char * argv[])
 
     /* if a regex input file was specified, parse it */
     if (regex_input_fname != NULL) {
-        if (parse_pcre_inputs(regex_input_fname) == FAILURE) {
+        if ((in_pcre_list = parse_pcre_inputs(regex_input_fname)) == NULL) {
             Log("Failed to parse all pcre input filters, bailing out...\n");
             goto cleanup;
         }
     }
     /* if a regex output file was specified, parse it */
     if (regex_output_fname != NULL) {
-        if (parse_pcre_inputs(regex_output_fname) == FAILURE) {
+        if ((out_pcre_list = parse_pcre_inputs(regex_output_fname)) == NULL) {
             Log("Failed to parse all pcre output filters, bailing out...\n");
             goto cleanup;
         }
     }
 
-    /* create the recv ring buffer if we have pcre inputs to match against*/
-    if (num_pcre_inputs > 0) {
-        recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
-        if (recv_ringbuf == NULL) {
-            Log("Error creating ring buffer\n");
-            goto cleanup;
-        }
+    recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
+    if (recv_ringbuf == NULL) {
+        Log("Error creating ring buffer\n");
+        goto cleanup;
     }
 
     /* setup logging server globals */
@@ -368,6 +363,18 @@ int main(int argc, char * argv[])
                 }
                 goto cleanup;
             }
+            /* are we doing pcre matching on input to gatekeeper? */
+            if (in_pcre_list != NULL) {
+                /* we have data.  add it to the ring buffer */
+                if (ringbuffer_write(recv_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
+                    Log("Weird, could not write all received data to the ring buffer.  Bailing out...\n");
+                    goto cleanup;
+                }
+                ringbuf_cnt = ringbuffer_peek(recv_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
+                if (check_for_match(in_pcre_list, pcrebuf, ringbuf_cnt) != 0) {
+                    /* we found a match.  now what do we do?  die?  flip bits? */
+                }
+            }
         } else if (FD_ISSET(remote_fd_r, &readfds)) {
             if ((num_bytes = read(remote_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
                 if (debugging) {
@@ -375,23 +382,17 @@ int main(int argc, char * argv[])
                 }
                 goto cleanup;
             }
-        }
-        /* are we doing pcre matching? */
-        if (num_pcre_inputs > 0) {
-            /* we have data.  add it to the ring buffer */
-            if (ringbuffer_write(recv_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
-                Log("Weird, could not write all received data to the ring buffer.  Bailing out...\n");
-                goto cleanup;
-            }
-            /* here's where we run checks on ringbuf to decide yay/nay on forwarding traffic.
-             * unfortunately it's not easy to do pcre matching on a segmented buffer.  the only
-             * real option is to copy ringbuf's (possibly) segmented contents to a contiguous
-             * buffer and feed that to check_for_match().  this is computationally more expensive
-             * than I'd like it to be, but right now that's the price we pay for better pcre
-             * matching across multiple read() calls */
-            ringbuf_cnt = ringbuffer_peek(recv_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
-            if (check_for_match(pcrebuf, ringbuf_cnt) != 0) {
-                /* we found a match.  now what do we do?  die?  flip bits? */
+            /* are we doing pcre matching on output from gatekeeper? */
+            if (out_pcre_list != NULL) {
+                /* we have data.  add it to the ring buffer */
+                if (ringbuffer_write(recv_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
+                    Log("Weird, could not write all received data to the ring buffer.  Bailing out...\n");
+                    goto cleanup;
+                }
+                ringbuf_cnt = ringbuffer_peek(recv_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
+                if (check_for_match(out_pcre_list, pcrebuf, ringbuf_cnt) != 0) {
+                    /* we found a match.  now what do we do?  die?  flip bits? */
+                }
             }
         }
         /* write data back out to opposite socket */
@@ -424,7 +425,8 @@ cleanup:
         close(log_fd);
     if (recv_ringbuf)
         ringbuffer_free(recv_ringbuf);
-    free_list(pcre_inputs);
+    free_list(in_pcre_list);
+    free_list(out_pcre_list);
     return SUCCESS;
 }
 

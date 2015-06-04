@@ -64,48 +64,52 @@ void free_list(pcre_list_t *list)
  * list that we'll use later to match traffic against
  */
 
-int parse_pcre_inputs(const char *fname)
+pcre_list_t *parse_pcre_inputs(const char *fname)
 {
     FILE *f;
     char line[1024];
     pcre *re;
+    pcre_list_t *pcre_list = NULL;
     const char *error;
     int erroffset;
+    int linenum;
+    
     if ((f = fopen(fname, "r")) == NULL) {
         Log("Error opening %s for reading: %s\n", fname, strerror(errno));
-        return FAILURE;
+        return NULL;
     }
     Log("Parsing pcre inputs from %s... ", fname);
+    linenum = 1;
     while (fgets(line, sizeof(line), f) != NULL) {
         re = pcre_compile(line, 0, &error, &erroffset, NULL);
         if (re == NULL) {
             /* compilation failed, bail out */
             Log("PCRE compilation failed on line %d at offset %d: %s\n",
-                (num_pcre_inputs + 1), erroffset, error);
-            return FAILURE;
+                linenum, erroffset, error);
+            return NULL;
         }
         /* compilation succeeded, add to linked list */
-        list_add(re, &pcre_inputs);
-        num_pcre_inputs++;
+        list_add(re, &pcre_list);
+        linenum++;
     }
     fclose(f);
-    Log("Done.\nParsed %d pcre inputs.\n", num_pcre_inputs);
+    Log("Done.\nParsed %d pcre inputs.\n", linenum);
 
-    return 0;
+    return pcre_list;
 }
 
 /*
- * iterates the list of compiled pcres, checking for any matches
- * against the supplied buffer.  returns 1 on the first match.
- * returns 0 if no matches are found.
+ * iterates the list of compiled pcres specified by pcre_list,
+ * checking for any matches against the supplied buffer.
+ * returns 1 on the first match, returns 0 if no matches are found.
  */
 
-int check_for_match(char *buf, int num_bytes)
+int check_for_match(pcre_list_t *p, char *buf, int num_bytes)
 {
     int rc;
     pcre_list_t *ptr;
 
-    for (ptr = pcre_inputs; ptr; ptr = ptr->next) {
+    for (ptr = p; ptr; ptr = ptr->next) {
         /* check each compiled regex against the buffer */
         rc = pcre_exec(ptr->re, NULL, buf, num_bytes, 0, 0, NULL, 0);
         if (rc < 0) {

@@ -59,8 +59,6 @@ typedef struct _interface_ip_list {
 /* Globals */
 extern int log_fd;
 extern struct in_addr log_addr;
-extern pcre_list_t *pcre_inputs;
-extern int num_pcre_inputs;
 extern int debugging;
 extern int verbose;
 extern pinterface_ip_list if_list;
@@ -89,6 +87,6 @@ int accept_udp_connection(int client_fd, int address_family);
 
 int list_add(pcre *re, pcre_list_t **head);
 void free_list(pcre_list_t *list);
-int parse_pcre_inputs(const char *fname);
-int check_for_match(char *buf, int num_bytes);
+pcre_list_t *parse_pcre_inputs(const char *fname);
+int check_for_match(pcre_list_t *, char *buf, int num_bytes);
 #endif
