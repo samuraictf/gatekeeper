@@ -3,7 +3,6 @@
 int log_fd;
 struct in_addr log_addr;
 int debugging;
-int verbose;
 pinterface_ip_list if_list;
 
 /*
@@ -79,7 +78,8 @@ int main(int argc, char * argv[])
     int ringbuf_cnt             = 0;
     char recvbuf[RECVBUF_SIZE]  = {0};
     char pcrebuf[RECVBUF_SIZE]  = {0};
-    ringbuffer_t * recv_ringbuf = NULL;
+    ringbuffer_t * in_ringbuf   = NULL;
+    ringbuffer_t * out_ringbuf  = NULL;
     pcre_list_t * in_pcre_list  = NULL;
     pcre_list_t * out_pcre_list = NULL;
     struct rlimit rl;
@@ -282,10 +282,20 @@ int main(int argc, char * argv[])
         }
     }
 
-    recv_ringbuf = ringbuffer_create(RECVBUF_SIZE);
-    if (recv_ringbuf == NULL) {
-        Log("Error creating ring buffer\n");
-        goto cleanup;
+    if (in_pcre_list != NULL) {
+        in_ringbuf = ringbuffer_create(RECVBUF_SIZE);
+        if (in_ringbuf == NULL) {
+            Log("Error creating input ring buffer\n");
+            goto cleanup;
+        }
+    }
+    
+    if (out_pcre_list != NULL) {
+        out_ringbuf = ringbuffer_create(RECVBUF_SIZE);
+        if (out_ringbuf == NULL) {
+            Log("Error creating output ring buffer\n");
+            goto cleanup;
+        }
     }
 
     /* setup logging server globals */
@@ -366,11 +376,11 @@ int main(int argc, char * argv[])
             /* are we doing pcre matching on input to gatekeeper? */
             if (in_pcre_list != NULL) {
                 /* we have data.  add it to the ring buffer */
-                if (ringbuffer_write(recv_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
-                    Log("Weird, could not write all received data to the ring buffer.  Bailing out...\n");
+                if (ringbuffer_write(in_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
+                    Log("Weird, could not write all received data to the input ring buffer.  Bailing out...\n");
                     goto cleanup;
                 }
-                ringbuf_cnt = ringbuffer_peek(recv_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
+                ringbuf_cnt = ringbuffer_peek(in_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
                 if (check_for_match(in_pcre_list, pcrebuf, ringbuf_cnt) != 0) {
                     /* we found a match.  now what do we do?  die?  flip bits? */
                 }
@@ -385,11 +395,11 @@ int main(int argc, char * argv[])
             /* are we doing pcre matching on output from gatekeeper? */
             if (out_pcre_list != NULL) {
                 /* we have data.  add it to the ring buffer */
-                if (ringbuffer_write(recv_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
-                    Log("Weird, could not write all received data to the ring buffer.  Bailing out...\n");
+                if (ringbuffer_write(out_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
+                    Log("Weird, could not write all received data to the output ring buffer.  Bailing out...\n");
                     goto cleanup;
                 }
-                ringbuf_cnt = ringbuffer_peek(recv_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
+                ringbuf_cnt = ringbuffer_peek(out_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
                 if (check_for_match(out_pcre_list, pcrebuf, ringbuf_cnt) != 0) {
                     /* we found a match.  now what do we do?  die?  flip bits? */
                 }
@@ -423,8 +433,10 @@ cleanup:
         close(remote_fd_w);
     if (log_fd != -1)
         close(log_fd);
-    if (recv_ringbuf)
-        ringbuffer_free(recv_ringbuf);
+    if (in_ringbuf)
+        ringbuffer_free(in_ringbuf);
+    if (out_ringbuf)
+        ringbuffer_free(out_ringbuf);
     free_list(in_pcre_list);
     free_list(out_pcre_list);
     return SUCCESS;

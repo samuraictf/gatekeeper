@@ -60,7 +60,6 @@ typedef struct _interface_ip_list {
 extern int log_fd;
 extern struct in_addr log_addr;
 extern int debugging;
-extern int verbose;
 extern pinterface_ip_list if_list;
 
 /* Prototypes */
