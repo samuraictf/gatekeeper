@@ -94,8 +94,8 @@ typedef struct _proxied_socket
     char    *buffer;                //!< Pointer into packet where the data should be stored
 } proxied_socket;
 
-struct _proxied_socket std_out;
-struct _proxied_socket std_in;
+struct _proxied_socket  std_out;
+struct _proxied_socket  std_in;
 
 //******************************************************************************
 //                                  PROTOTYPES
@@ -159,9 +159,9 @@ ctrl_c
     int dontcare
 )
 {
-    std_out.sequence = 0;
+    std_out.sequence    = 0;
     dprintf(2, "Got Ctrl+C, exiting\n");
-    dontcare = 0;
+    dontcare            = 0;
     close(std_out.source);
     close(std_in.sink);
 }
@@ -371,15 +371,15 @@ build_and_save_packet
 
     if (in->sa.sa_family == AF_INET)
     {
-        tcp = &P->p4.tcp;
-        P->p4.ip.tot_len = htons(sizeof(P->p4) + length);
-        header_size = sizeof(P->p4);
+        tcp                 = &P->p4.tcp;
+        P->p4.ip.tot_len    = htons(sizeof(P->p4) + length);
+        header_size         = sizeof(P->p4);
     }
     else // AF_INET6
     {
-        tcp = &P->p6.tcp;
-        P->p6.ip.ip6_plen = htons(sizeof(*tcp) + length);
-        header_size = sizeof(P->p6);
+        tcp                 = &P->p6.tcp;
+        P->p6.ip.ip6_plen   = htons(sizeof(*tcp) + length);
+        header_size         = sizeof(P->p6);
     }
 
     tcp->seq        = htonl(in->sequence);
