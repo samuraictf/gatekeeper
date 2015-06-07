@@ -1,0 +1,5 @@
+
+All of the PCAP has to happen out-of-process.
+
+It's very important that the service binary does not have any open file
+descriptors which are sockets, so that their findpeer shellcode will fail.
