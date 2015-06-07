@@ -12,13 +12,23 @@ INCLUDES = -I.
 LDFLAGS = -L. -lpcap
 
 # -- Flags --
+CFLAGS 		+= $(INCLUDES)
+
 ifdef DEBUG
 	CFLAGS		+= -g -O0 -DDEBUG=1
 	LDFLAGS		+= -g -O0 -DDEBUG=1
+else ifndef NOSTRIP
+	LDFLAGS		+= -s
 endif
-CFLAGS      += -fsanitize=address
-LDFLAGS     += -fsanitize=address
-CFLAGS 		+= $(INCLUDES)
+
+ifdef ASAN
+	CFLAGS      += -fsanitize=address
+	LDFLAGS     += -fsanitize=address
+endif
+
+ifdef STATIC
+	LDFLAGS      += -static
+endif
 
 # -- Input Files --
 C_FILES   = $(wildcard $(SRC)/*.c)

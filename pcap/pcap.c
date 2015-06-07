@@ -32,6 +32,19 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <libgen.h>
+
+// #ifdef __APPLE__
+// struct iphdr {
+//     struct ip internal;
+// };
+// #define ihl      internal.ip_hl
+// #define version  internal.ip_v
+// #define protocol internal.ip_p
+// #define ttl      internal.ip_ttl
+// #define saddr internal.ip_src
+// #define daddr internal.ip_dst
+// #endif
 
 //******************************************************************************
 //                                PACKET HEADERS
@@ -39,7 +52,7 @@
 #pragma pack(push, 1)
 typedef struct
 {
-    struct iphdr    ip;
+    struct ip       ip;
     struct tcphdr   tcp;
     char            data[];
 } packet4_t;
@@ -185,6 +198,25 @@ max
 
 
 
+#ifdef __APPLE__
+int
+pipe2
+(
+    int fd[2],
+    int flags
+)
+{
+    int rc = pipe(fd);
+    fcntl(fd[0], F_SETFD, flags);
+    fcntl(fd[1], F_SETFD, flags);
+    return rc;
+}
+
+
+
+#endif
+
+
 //------------------------------------ MAIN ------------------------------------
 int
 main
@@ -314,17 +346,17 @@ initialize_packet
 
     if (in->sa.sa_family == AF_INET)
     {
-        P->p4.ip.ihl        = sizeof(P->p4.ip) / 4;
-        P->p4.ip.version    = 4;
-        P->p4.ip.protocol   = IPPROTO_TCP;
-        P->p4.ip.ttl        = 5; // Must be 5+, or Wireshark colors red!
+        P->p4.ip.ip_hl  = sizeof(P->p4.ip) / 4;
+        P->p4.ip.ip_v   = 4;
+        P->p4.ip.ip_p   = IPPROTO_TCP;
+        P->p4.ip.ip_ttl = 5; // Must be 5+, or Wireshark colors red!
 
-        memcpy(&P->p4.ip.saddr, &in->sa4.sin_addr.s_addr, 4);
-        memcpy(&P->p4.ip.daddr, &out->sa4.sin_addr.s_addr, 4);
+        memcpy(&P->p4.ip.ip_src, &in->sa4.sin_addr.s_addr, 4);
+        memcpy(&P->p4.ip.ip_dst, &out->sa4.sin_addr.s_addr, 4);
 
-        tcp                 = &P->p4.tcp;
-        tcp->source         = in->sa4.sin_port;
-        tcp->dest           = out->sa4.sin_port;
+        tcp             = &P->p4.tcp;
+        tcp->th_sport   = in->sa4.sin_port;
+        tcp->th_dport   = out->sa4.sin_port;
     }
     else // AF_INET6
     {
@@ -335,12 +367,12 @@ initialize_packet
         memcpy(&P->p6.ip.ip6_dst, &out->sa6.sin6_addr, sizeof(P->p6.ip.ip6_dst));
 
         tcp                 = &P->p6.tcp;
-        tcp->source         = in->sa6.sin6_port;
-        tcp->dest           = out->sa6.sin6_port;
+        tcp->th_sport       = in->sa6.sin6_port;
+        tcp->th_dport       = out->sa6.sin6_port;
     }
 
-    tcp->doff   = sizeof(*tcp) / 4;
-    tcp->window = htons(2048);
+    tcp->th_off = sizeof(*tcp) / 4;
+    tcp->th_win = htons(2048);
 
     in->buffer  = (char *)(tcp + 1);
 }
@@ -371,21 +403,21 @@ build_and_save_packet
 
     if (in->sa.sa_family == AF_INET)
     {
-        tcp                 = &P->p4.tcp;
-        P->p4.ip.tot_len    = htons(sizeof(P->p4) + length);
-        header_size         = sizeof(P->p4);
+        tcp             = &P->p4.tcp;
+        P->p4.ip.ip_len = htons(sizeof(P->p4) + length);
+        header_size     = sizeof(P->p4);
     }
     else // AF_INET6
     {
-        tcp                 = &P->p6.tcp;
-        P->p6.ip.ip6_plen   = htons(sizeof(*tcp) + length);
-        header_size         = sizeof(P->p6);
+        tcp = &P->p6.tcp;
+        P->p6.ip.ip6_plen = htons(sizeof(*tcp) + length);
+        header_size = sizeof(P->p6);
     }
 
-    tcp->seq        = htonl(in->sequence);
-    tcp->ack_seq    = htonl(out->sequence);
-    tcp->syn        = syn;
-    tcp->ack        = ack;
+    tcp->th_seq     = htonl(in->sequence);
+    tcp->th_ack     = htonl(out->sequence);
+    tcp->th_flags   |= syn ? TH_SYN : 0;
+    tcp->th_flags   |= ack ? TH_ACK : 0;
 
     in->sequence    += length;
 
@@ -498,9 +530,9 @@ get_local_remote_info
        || (  std_out.sa.sa_family != AF_INET
           && std_out.sa.sa_family != AF_INET6))
     {
-        std_out.sa4.sin_port        = htons(1234);
+        std_out.sa4.sin_port        = htons();
         std_out.sa4.sin_family      = AF_INET;
-        std_out.sa4.sin_addr.s_addr = inet_addr("127.0.0.1");
+        std_out.sa4.sin_addr.s_addr = inet_addr("1.1.1.1");
     }
 
     size = sizeof(std_in);
@@ -509,9 +541,9 @@ get_local_remote_info
        || (  std_in.sa.sa_family != AF_INET
           && std_in.sa.sa_family != AF_INET6))
     {
-        std_in.sa4.sin_port         = htons(5678);
+        std_in.sa4.sin_port         = htons(0);
         std_in.sa4.sin_family       = AF_INET;
-        std_in.sa4.sin_addr.s_addr  = inet_addr("127.0.0.1");
+        std_in.sa4.sin_addr.s_addr  = inet_addr("0.0.0.0");
     }
 }
 
