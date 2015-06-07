@@ -34,18 +34,6 @@
 #include <unistd.h>
 #include <libgen.h>
 
-// #ifdef __APPLE__
-// struct iphdr {
-//     struct ip internal;
-// };
-// #define ihl      internal.ip_hl
-// #define version  internal.ip_v
-// #define protocol internal.ip_p
-// #define ttl      internal.ip_ttl
-// #define saddr internal.ip_src
-// #define daddr internal.ip_dst
-// #endif
-
 //******************************************************************************
 //                                PACKET HEADERS
 //******************************************************************************
