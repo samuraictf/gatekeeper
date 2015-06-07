@@ -27,7 +27,7 @@ set_cloexec_on_all_fds
  * Randomizes the selected file descriptor to a new value.
  */
 int
-randfd
+dup_random
 (
     int fd
 )

@@ -1,23 +1,11 @@
-       #include <sys/types.h>
-       #include <sys/stat.h>
-       #include <fcntl.h>
-       #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 
 int real_stdin, real_stdout, real_stderr;
 int proxy_stdin[2], proxy_stdout[2], proxy_stderr[2];
-
-
-void
-initialize_random
-(
-)
-{
-    int seed;
-    int urandom = open("/dev/urandom", O_RDONLY);
-    read(urandom, &seed, sizeof(seed));
-    srand(seed);
-}
 
 
 

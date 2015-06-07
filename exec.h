@@ -1,13 +1,9 @@
-typedef struct
-{
-    int     source;                 //!< Source file descriptor
-    int     sink;                   //!< Sink file descriptor
-} proxied_fd;
-
-extern proxied_fd std_in, std_out;
+#include "fd.h"
 
 int
 create_pipes_fork_and_exec
 (
+    proxied_fd *std_in,
+    proxied_fd *std_out,
     char **argv
 );
