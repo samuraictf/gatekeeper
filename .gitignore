@@ -36,3 +36,4 @@ gatekeeper
 gatekeeper.so
 
 *~
+.depfile
