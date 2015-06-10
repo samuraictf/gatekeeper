@@ -13,7 +13,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    int fd = open(argv[1], O_WRONLY);
+    int fd = open(argv[1], O_RDONLY);
 
     if(fd < 1) {
         dprintf(2, "could not open %s: %s\n", argv[1], strerror(errno));
