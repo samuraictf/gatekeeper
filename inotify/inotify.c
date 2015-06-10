@@ -5,6 +5,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+void sigchld_handler(int dontcare)
+{
+    exit(dontcare);
+}
+
 int
 main
 (
@@ -32,6 +37,8 @@ main
     if(watch_fd < 0) {
         perror("watch");
     }
+
+    signal(SIGCHLD, sigchld_handler);
 
     if(fork() == 0) {
         execvp(argv[2], &argv[2]);
