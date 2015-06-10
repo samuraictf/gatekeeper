@@ -39,7 +39,6 @@
 #define REMOTE_RAND_ENV 2
 #define RECVBUF_SIZE 4096
 
-
 /* typedefs / structs */
 typedef struct pcre_list pcre_list_t;
 struct pcre_list {
@@ -56,6 +55,13 @@ typedef struct _interface_ip_list {
 	struct in6_addr ia6;
 } interface_ip_list, *pinterface_ip_list;
 
+typedef struct connection_t {
+	struct pcre_list *blacklist;
+	struct ringbuffer_t *ring_buffer;
+	int socket_src_r, socket_src_w;
+	int socket_dst_r, socket_dst_w;
+} connection_t;
+
 /* Globals */
 extern int log_fd;
 extern struct in_addr log_addr;
@@ -69,7 +75,7 @@ void usage(void);
 int main(int argc, char * argv[]);
 void sigchld();
 int setup_logsocket(char * logsrvstr);
-int setup_connection(char * listenstr, int * out_fd_r, int * out_fd_w, int type);
+int setup_connection(char * listenstr, struct connection_t *connection, int type);
 int parse_address_string(char * instr, void * addr, size_t addr_size, unsigned short * port, int address_family);
 char ** build_rand_envp();
 
@@ -88,5 +94,9 @@ int list_add(pcre *re, pcre_list_t **head);
 void free_list(pcre_list_t *list);
 pcre_list_t *parse_pcre_inputs(const char *fname);
 int check_for_match(pcre_list_t *, char *buf, int num_bytes);
-int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, struct ringbuffer_t *ring_buffer);
+int proxy_packet(struct connection_t *connection);
+
+connection_t *alloc_connection();
+void free_connection(struct connection_t *connection);
+int weave_connections(struct connection_t *inbound, struct connection_t *outbound);
 #endif
