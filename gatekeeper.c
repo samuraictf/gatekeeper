@@ -69,17 +69,10 @@ int main(int argc, char * argv[])
     unsigned int i              = 0;
     unsigned int alarmval       = 0;
     unsigned int seed           = 0;
-    int listen_fd_r             = -1;
-    int listen_fd_w             = -1;
-    int remote_fd_r             = -1;
-    int remote_fd_w             = -1;
     int highest_fd              = -1;
-    ringbuffer_t * in_ringbuf   = NULL;
-    ringbuffer_t * out_ringbuf  = NULL;
-    pcre_list_t * in_pcre_list  = NULL;
-    pcre_list_t * out_pcre_list = NULL;
     struct rlimit rl;
     fd_set readfds;
+    connection_t *connections[2] = {0};
 
     /* initialize globals*/
     debugging = 0;
@@ -87,6 +80,13 @@ int main(int argc, char * argv[])
 
     memset(&log_addr, 0, sizeof(log_addr));
     memset(&rl, 0, sizeof(rl));
+
+    for (i = 0; i < sizeof(connections); i++) {
+        if((connections[i] = alloc_connection()) == NULL) {
+            Log("Failed to allocate new connection\n");
+            goto cleanup;
+        }
+    }
 
     /* capture environment configurations */
     listenstr           = getenv("GK_LISTENSTR");
@@ -265,31 +265,24 @@ int main(int argc, char * argv[])
 
     /* if a regex input file was specified, parse it */
     if (regex_input_fname != NULL) {
-        if ((in_pcre_list = parse_pcre_inputs(regex_input_fname)) == NULL) {
+        if ((connections[0]->blacklist = parse_pcre_inputs(regex_input_fname)) == NULL) {
             Log("Failed to parse all pcre input filters, bailing out...\n");
             goto cleanup;
         }
     }
     /* if a regex output file was specified, parse it */
     if (regex_output_fname != NULL) {
-        if ((out_pcre_list = parse_pcre_inputs(regex_output_fname)) == NULL) {
+        if ((connections[1]->blacklist = parse_pcre_inputs(regex_output_fname)) == NULL) {
             Log("Failed to parse all pcre output filters, bailing out...\n");
             goto cleanup;
         }
     }
 
-    if (in_pcre_list != NULL) {
-        in_ringbuf = ringbuffer_create(RECVBUF_SIZE);
-        if (in_ringbuf == NULL) {
-            Log("Error creating input ring buffer\n");
-            goto cleanup;
-        }
-    }
-    
-    if (out_pcre_list != NULL) {
-        out_ringbuf = ringbuffer_create(RECVBUF_SIZE);
-        if (out_ringbuf == NULL) {
-            Log("Error creating output ring buffer\n");
+    for (i = 0;i < sizeof(connections); i++) {
+        if (!connections[i]->blacklist) continue;
+        connections[i]->ring_buffer = ringbuffer_create(RECVBUF_SIZE);
+        if (!connections[i]->ring_buffer) {
+            Log("Error creating ring buffer\n");
             goto cleanup;
         }
     }
@@ -325,14 +318,16 @@ int main(int argc, char * argv[])
     }
 
     /* setup local listener fd's, will block to accept connections */
-    if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE) {
+    if (setup_connection(listenstr, connections[0], LOCAL) == FAILURE) {
         goto cleanup;
     }
 
     /* setup remote fd's */
-    if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, randenv ? REMOTE_RAND_ENV : REMOTE) == FAILURE) {
+    if (setup_connection(redirectstr, connections[1], randenv ? REMOTE_RAND_ENV : REMOTE) == FAILURE) {
         goto cleanup;
     }
+
+    weave_connections(connections[0], connections[1]);
 
     /* set alarm if one was specified, must be after connection establised to be in
        correct fork-ed process */
@@ -343,82 +338,95 @@ int main(int argc, char * argv[])
     /* check for IP blacklist */
 
     /* start the pumps */
-    if (listen_fd_r > remote_fd_r) {
-        highest_fd = listen_fd_r;
-    } else {
-        highest_fd = remote_fd_r;
+    highest_fd = connections[0]->socket_src_r;
+    for (i = 1; i < sizeof(connections); i++) {
+        if(connections[i]->socket_src_r <= highest_fd) continue;
+        highest_fd = connections[i]->socket_src_r;
     }
-
-    /*  listen_fd_r -> remote_fd_w
-        remote_fd_r -> listen_fd_w */
 
     while (1) {
         /* move out of loop and memcpy from tmp variable instead? maybe later. */
         FD_ZERO(&readfds);
-        FD_SET(listen_fd_r, &readfds);
-        FD_SET(remote_fd_r, &readfds);
+        for(i=0;i<2;i++) {
+            FD_SET(connections[i]->socket_src_r, &readfds);
+        }
         if (select(highest_fd + 1, &readfds, NULL, NULL, NULL) == -1) {
             Log("select() threw an error: %s\n", strerror(errno));
             goto cleanup;
         }
-        /* read in data from the socket that is ready */
-        if (FD_ISSET(listen_fd_r, &readfds)) {
-            if (proxy_packet(listen_fd_r, remote_fd_r, in_pcre_list, in_ringbuf) < 0) {
-                goto cleanup;
-            }
-        }
-        if (FD_ISSET(remote_fd_r, &readfds)) {
-            if (proxy_packet(remote_fd_r, listen_fd_r, out_pcre_list, out_ringbuf) < 0) {
-                goto cleanup;
+        /* read in data from ready sockets */
+        for(i=0;i<2;i++) {
+            if (FD_ISSET(connections[i]->socket_src_r, &readfds)) {
+                if (proxy_packet(connections[i]) < 0) {
+                    goto cleanup;
+                }
             }
         }
     }
 
 
 cleanup:
-    if (listen_fd_r != -1)
-        close(listen_fd_r);
-    if (listen_fd_w != -1)
-        close(listen_fd_w);
-    if (remote_fd_r != -1)
-        close(remote_fd_r);
-    if (remote_fd_w != -1)
-        close(remote_fd_w);
+    for (i = 0; i < sizeof(connections); i++) {
+        free_connection(connections[i]);
+    }
     if (log_fd != -1)
         close(log_fd);
-    if (in_ringbuf)
-        ringbuffer_free(in_ringbuf);
-    if (out_ringbuf)
-        ringbuffer_free(out_ringbuf);
-    free_list(in_pcre_list);
-    free_list(out_pcre_list);
     return SUCCESS;
 }
 
-int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, ringbuffer_t *ring_buffer)
+connection_t *alloc_connection() {
+    connection_t *connection = calloc(1,sizeof(connection_t));
+    if(!connection) return connection;
+    connection->socket_src_r = -1;
+    connection->socket_src_w = -1;
+    connection->socket_dst_r = -1;
+    connection->socket_dst_w = -1;
+    return connection;
+}
+
+void free_connection(struct connection_t *connection) {
+    if(!connection) return;
+    if(connection->socket_src_r != -1) close(connection->socket_src_r);
+    if(connection->socket_src_w != -1) close(connection->socket_src_w);
+    if(connection->ring_buffer) ringbuffer_free(connection->ring_buffer);
+    if(connection->blacklist) free_list(connection->blacklist);
+    free(connection);
+}
+
+int weave_connections(struct connection_t *inbound, struct connection_t *outbound) {
+    if(!inbound) return -1;
+    if(!outbound) return -1;
+    inbound->socket_dst_r = outbound->socket_src_r;
+    inbound->socket_dst_w = outbound->socket_src_w;
+    outbound->socket_dst_r = inbound->socket_src_r;
+    outbound->socket_dst_w = inbound->socket_src_w;
+    return 0;
+}
+
+int proxy_packet(struct connection_t *connection)
 {
     int num_bytes = 0;
     int ringbuf_cnt = 0;
     char recvbuf[RECVBUF_SIZE] = {0};
     char pcrebuf[RECVBUF_SIZE] = {0};
-    num_bytes = read(socket_src, recvbuf, RECVBUF_SIZE);
+    num_bytes = read(connection->socket_src_r, recvbuf, RECVBUF_SIZE);
     if(!num_bytes) {
-        if (debugging) { Log("Got EOF on socket %d\n",socket_src); }
+        if (debugging) { Log("Got EOF on socket %d\n",connection->socket_src_r); }
         return -1;
     }
-    if(filters) {
-        if(ringbuffer_write(ring_buffer, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
+    if(connection->blacklist) {
+        if(ringbuffer_write(connection->ring_buffer, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
             Log("Weird, could not write all received data to the input ring buffer.  Bailing out...\n");
             return -1;
         }
-        ringbuf_cnt = ringbuffer_peek(ring_buffer, (uint8_t *)pcrebuf, RECVBUF_SIZE);
-        if (check_for_match(filters, pcrebuf, ringbuf_cnt) != 0) {
+        ringbuf_cnt = ringbuffer_peek(connection->ring_buffer, (uint8_t *)pcrebuf, RECVBUF_SIZE);
+        if (check_for_match(connection->blacklist, pcrebuf, ringbuf_cnt) != 0) {
             /* we found a match.  now what do we do?  die?  flip bits? */
             Log("Blacklist filter match; dropping connection\n");
             return -1;
         }
     }
-    if (write(socket_dst, recvbuf, num_bytes) != num_bytes) {
+    if (write(connection->socket_dst_w, recvbuf, num_bytes) != num_bytes) {
         Log("Huh? Couldn't write all available data to remote_fd...\n");
         /* fail here? */
     }
@@ -481,7 +489,7 @@ int setup_logsocket(char * logsrvstr)
  *
  * At the end of this function server sockets will have a connected socket.
  */
-int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
+int setup_connection(char * instr, struct connection_t *connection, int local)
 {
     struct in_addr addr;
     struct in6_addr addr6;
@@ -500,8 +508,8 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     char ** envp = NULL;
     char ** argv = NULL;
 
-    *out_fd_r = fd_r;
-    *out_fd_r = fd_w;
+    connection->socket_src_r = fd_r;
+    connection->socket_src_w = fd_w;
 
     memset(str, 0, sizeof(str));
     memset(&addr, 0, sizeof(addr));
@@ -652,8 +660,8 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
         Log("Invalid listen string, one of stdio, tcpipv4, tcpipv6, udpipv4, udpipv6 is required\n");
         return FAILURE;
     }
-    *out_fd_r = fd_r;
-    *out_fd_w = fd_w;
+    connection->socket_src_r = fd_r;
+    connection->socket_src_w = fd_w;
     return SUCCESS;
 }
 
