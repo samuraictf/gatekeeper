@@ -9,7 +9,7 @@ In order to build for an alternate architecture, just do something like:
 Usage is straightforward:
 
     $ echo Hello, world > hello
-    $ exec 1023 < hello
+    $ exec 1023<>hello
     $ LD_PRELOAD=$PWD/devctf.so python <<EOF
-    print open("/dev/ctf").read()
-    EOF
+print open("/dev/ctf").read()
+EOF

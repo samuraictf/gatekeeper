@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <dlfcn.h>
+#include <stdio.h>
 
 #undef open
 
@@ -28,6 +29,7 @@ __attribute__((constructor))
 static int
 initialize()
 {
+    puts("HELLO");
     real_open = (p_open) dlsym(RTLD_NEXT, "open");
     return 0;
 }

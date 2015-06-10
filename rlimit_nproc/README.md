@@ -1,7 +1,7 @@
 
-# rlimit_cpu
+# rlimit_nproc
 
-Limits the maximum amount of CPU time that a process can use.
+Limits the maximum number of processes which can be active as the current user before a `fork` request is permitted.
 
 ## notes
 
