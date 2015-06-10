@@ -4,6 +4,7 @@
 #include <sys/inotify.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 void sigchld_handler(int dontcare)
 {
@@ -37,6 +38,9 @@ main
     if(watch_fd < 0) {
         perror("watch");
     }
+
+    fcntl(inotify_fd, F_SETFD, O_CLOEXEC);
+    fcntl(watch_fd, F_SETFD, O_CLOEXEC);
 
     signal(SIGCHLD, sigchld_handler);
 
