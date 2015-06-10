@@ -1,6 +1,6 @@
 # unbuffer
 
-Effectively disables buffering of stdout on the child process.
+Effectively disables buffering of stdio on the child process.
 
 ## notes
 
@@ -14,7 +14,8 @@ Normally, processes which detect that `stdin` is a pipe do processing in batch m
 
 ```sh
 $ (echo "print 'python'"; sleep 1; echo bash>&2; sleep 1;) | python
-hello
+bash
+python
 ```
 
 ```sh
