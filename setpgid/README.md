@@ -14,8 +14,8 @@ Use `0` to create a new proces group id.`
 
 ```
 $ ./setpgid 0 sh
-$ ps  xao pid,ppid,pgid,sid | grep $$
- 9647 18575  9647 18575
- 9648  9647  9648 18575
- 9649  9647  9648 18575
+$ ps xao comm,pid,ppid,pgid,sid | grep $$
+sh              40280 32530 40280 32530
+ps              40287 40280 40287 32530
+grep            40288 40280 40287 32530
 ```
