@@ -42,12 +42,12 @@ extern "C" {
  * identities cannot be interchanged.
  */
 
-typedef struct {
+typedef struct ringbuffer_data_t {
     uint8_t   *buf;
     size_t    len;
 } ringbuffer_data_t;
 
-typedef struct {
+typedef struct ringbuffer_t {
     uint8_t	    *buf;
     volatile size_t   write_ptr;
     volatile size_t   read_ptr;

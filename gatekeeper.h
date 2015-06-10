@@ -88,4 +88,5 @@ int list_add(pcre *re, pcre_list_t **head);
 void free_list(pcre_list_t *list);
 pcre_list_t *parse_pcre_inputs(const char *fname);
 int check_for_match(pcre_list_t *, char *buf, int num_bytes);
+int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, struct ringbuffer_t *ring_buffer);
 #endif

@@ -74,10 +74,6 @@ int main(int argc, char * argv[])
     int remote_fd_r             = -1;
     int remote_fd_w             = -1;
     int highest_fd              = -1;
-    int num_bytes               = 0;
-    int ringbuf_cnt             = 0;
-    char recvbuf[RECVBUF_SIZE]  = {0};
-    char pcrebuf[RECVBUF_SIZE]  = {0};
     ringbuffer_t * in_ringbuf   = NULL;
     ringbuffer_t * out_ringbuf  = NULL;
     pcre_list_t * in_pcre_list  = NULL;
@@ -367,56 +363,13 @@ int main(int argc, char * argv[])
         }
         /* read in data from the socket that is ready */
         if (FD_ISSET(listen_fd_r, &readfds)) {
-            if ((num_bytes = read(listen_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
-                if (debugging) {
-                    Log("Got EOF on listen_fd_r\n");
-                }
+            if (proxy_packet(listen_fd_r, remote_fd_r, in_pcre_list, in_ringbuf) < 0) {
                 goto cleanup;
-            }
-            /* are we doing pcre matching on input to gatekeeper? */
-            if (in_pcre_list != NULL) {
-                /* we have data.  add it to the ring buffer */
-                if (ringbuffer_write(in_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
-                    Log("Weird, could not write all received data to the input ring buffer.  Bailing out...\n");
-                    goto cleanup;
-                }
-                ringbuf_cnt = ringbuffer_peek(in_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
-                if (check_for_match(in_pcre_list, pcrebuf, ringbuf_cnt) != 0) {
-                    /* we found a match.  now what do we do?  die?  flip bits? */
-                }
-            }
-        } else if (FD_ISSET(remote_fd_r, &readfds)) {
-            if ((num_bytes = read(remote_fd_r, recvbuf, RECVBUF_SIZE)) == 0) {
-                if (debugging) {
-                    Log("Got EOF on remote_fd_r\n");
-                }
-                goto cleanup;
-            }
-            /* are we doing pcre matching on output from gatekeeper? */
-            if (out_pcre_list != NULL) {
-                /* we have data.  add it to the ring buffer */
-                if (ringbuffer_write(out_ringbuf, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
-                    Log("Weird, could not write all received data to the output ring buffer.  Bailing out...\n");
-                    goto cleanup;
-                }
-                ringbuf_cnt = ringbuffer_peek(out_ringbuf, (uint8_t *)pcrebuf, RECVBUF_SIZE);
-                if (check_for_match(out_pcre_list, pcrebuf, ringbuf_cnt) != 0) {
-                    /* we found a match.  now what do we do?  die?  flip bits? */
-                }
             }
         }
-        /* write data back out to opposite socket */
-        if (FD_ISSET(listen_fd_r, &readfds)) {
-            /* now pump out remote_fd_w */
-            if (write(remote_fd_w, recvbuf, num_bytes) != num_bytes) {
-                Log("Huh? Couldn't write all available data to remote_fd...\n");
-                /* fail here? */
-            }
-        } else if (FD_ISSET(remote_fd_r, &readfds)) {
-            /* now pump out listen_fd_w */
-            if (write(listen_fd_w, recvbuf, num_bytes) != num_bytes) {
-                Log("Huh? Couldn't write all available data to listen_fd...\n");
-                /* fail here? */
+        if (FD_ISSET(remote_fd_r, &readfds)) {
+            if (proxy_packet(remote_fd_r, listen_fd_r, out_pcre_list, out_ringbuf) < 0) {
+                goto cleanup;
             }
         }
     }
@@ -440,6 +393,36 @@ cleanup:
     free_list(in_pcre_list);
     free_list(out_pcre_list);
     return SUCCESS;
+}
+
+int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, ringbuffer_t *ring_buffer)
+{
+    int num_bytes = 0;
+    int ringbuf_cnt = 0;
+    char recvbuf[RECVBUF_SIZE] = {0};
+    char pcrebuf[RECVBUF_SIZE] = {0};
+    num_bytes = read(socket_src, recvbuf, RECVBUF_SIZE);
+    if(!num_bytes) {
+        if (debugging) { Log("Got EOF on socket %d\n",socket_src); }
+        return -1;
+    }
+    if(filters) {
+        if(ringbuffer_write(ring_buffer, (uint8_t *)recvbuf, num_bytes) != (unsigned int)num_bytes) {
+            Log("Weird, could not write all received data to the input ring buffer.  Bailing out...\n");
+            return -1;
+        }
+        ringbuf_cnt = ringbuffer_peek(ring_buffer, (uint8_t *)pcrebuf, RECVBUF_SIZE);
+        if (check_for_match(filters, pcrebuf, ringbuf_cnt) != 0) {
+            /* we found a match.  now what do we do?  die?  flip bits? */
+            Log("Blacklist filter match; dropping connection\n");
+            return -1;
+        }
+    }
+    if (write(socket_dst, recvbuf, num_bytes) != num_bytes) {
+        Log("Huh? Couldn't write all available data to remote_fd...\n");
+        /* fail here? */
+    }
+    return num_bytes;
 }
 
 /*
