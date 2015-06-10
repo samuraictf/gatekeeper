@@ -13,11 +13,10 @@ This tool will capture the real, actual IP and port information if `stdin` is th
 ## usage
 
 ```sh
-$ ./pcap whoami
-/tmp/pcap-whoami.1433888440.8656.pcap
+$ ./pcap foo.pcap whoami
 riggle
-$ tcpdump -XXr /tmp/pcap-whoami.1433888440.8656.pcap
-reading from file /tmp/pcap-whoami.1433888440.8656.pcap, link-type EN10MB (Ethernet)
+$ tcpdump -XXr foo.pcap
+reading from file foo.pcap, link-type EN10MB (Ethernet)
 18:20:40.976446 IP localhost.5678 > localhost.1234: [|tcp]
         0x0000:  0000 0000 0000 0000 0000 0000 0800 4500  ..............E.
         0x0010:  001b 0000 0000 0006 0000 7f00 0001 7f00  ................
