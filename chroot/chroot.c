@@ -10,6 +10,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
     unshare(CLONE_NEWUSER);
-    chroot(argv[1]);
+    chdir(argv[1]);
+    chroot(".");
     execvp(argv[2], &argv[2]);
 }
