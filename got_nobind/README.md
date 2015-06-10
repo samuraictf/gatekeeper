@@ -1,8 +1,8 @@
 # got_nobind
 
-Does the exact opposite of `LD_BIND_NOW`.  This prevents the GOT entries from ever being updated, so they cannot be used as leaks.
+Does the exact opposite of `LD_BIND_NOW`.
 
-They can still be overwritten.
+This prevents the GOT resolver from updating entries, so they cannot leak library addresses. Applications may still overwrite the entries directly.
 
 # example
 
