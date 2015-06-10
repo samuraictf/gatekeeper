@@ -213,9 +213,9 @@ main
     char    ** argv
 )
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        printf("usage: %s argv0 argv1 ...", argv[0]);
+        printf("usage: %s <file.pcap> argv0 argv1 ...", argv[0]);
         exit(1);
     }
 
@@ -228,7 +228,7 @@ main
     setup_environment("REMOTE", &std_in);
 
     // Create the child process, and initialize various file descriptors
-    int child_pid = create_pipes_fork_and_exec(&argv[1]);
+    int child_pid = create_pipes_fork_and_exec(&argv[2]);
 
     // Clean up nicely on Ctrl+C
     signal(SIGINT, ctrl_c);
@@ -236,16 +236,13 @@ main
     //
     // Open up a pcap session file
     //
-    char *tempfile, *dstfile;
-    asprintf(&tempfile, "/tmp/.pcap-%s.%lu.%i.pcap", basename(argv[1]), time(0), child_pid);
-    asprintf(&dstfile, "/tmp/pcap-%s.%lu.%i.pcap", basename(argv[1]), time(0), child_pid);
+    char *dstfile = argv[1];
+    char *tempfile = 0;
+
+    asprintf(&tempfile, "%s/.%s", dirname(dstfile), basename(dstfile));
 
     pcap    = pcap_open_dead(DLT_RAW, 0x10000);
     dumper  = pcap_dump_open(pcap, tempfile);
-
-    int tty = open("/dev/tty", O_WRONLY);
-    dprintf(tty, "%s\n", dstfile);
-    close(tty);
 
     // Initialize packets
     initialize_packet(&std_out, &std_in);
@@ -312,7 +309,6 @@ main
 
     rename(tempfile, dstfile);
     free(tempfile);
-    free(dstfile);
 }
 
 
@@ -518,7 +514,7 @@ get_local_remote_info
        || (  std_out.sa.sa_family != AF_INET
           && std_out.sa.sa_family != AF_INET6))
     {
-        std_out.sa4.sin_port        = htons();
+        std_out.sa4.sin_port        = htons(0);
         std_out.sa4.sin_family      = AF_INET;
         std_out.sa4.sin_addr.s_addr = inet_addr("1.1.1.1");
     }
