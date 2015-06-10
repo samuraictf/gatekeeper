@@ -2,6 +2,8 @@
 
 Sets debug flags which are interpreted by `eglibc` that are beneficial to defending `malloc` and friends.
 
+For more information, see `man 3 mallopt`.
+
 ## notes
 
 This disables some of the diagnostic messages emitted to `/dev/tty` (or `stderr`) when heap corruption is detected.
