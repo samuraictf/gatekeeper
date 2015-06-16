@@ -37,3 +37,5 @@ gatekeeper.so
 
 *~
 .depfile
+
+npm-debug.log
