@@ -53,8 +53,6 @@ main
     // We don't really need to find out what the filename is, we already know.
     read(inotify_fd, &event, sizeof(event));
 
-    dprintf(2, "%x %x %x %x\n", event.wd, event.mask, event.cookie, event.len);
-
     // Kill all processes in our process group.
     kill(kill_pid, SIGKILL);
 }
