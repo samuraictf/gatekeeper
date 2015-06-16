@@ -29,11 +29,13 @@ main
     int     kill_pid = -pgid;
     int     inotify_fd  = inotify_init();
 
+    memset(&event, 0, sizeof(event));
+
     if(inotify_fd < 0) {
         perror("init");
     }
 
-    int     watch_fd = inotify_add_watch(inotify_fd, argv[1], IN_OPEN | IN_ACCESS);
+    int     watch_fd = inotify_add_watch(inotify_fd, argv[1], IN_OPEN);
 
     if(watch_fd < 0) {
         perror("watch");
@@ -49,7 +51,9 @@ main
     }
 
     // We don't really need to find out what the filename is, we already know.
-    read(watch_fd, &event, sizeof(event));
+    read(inotify_fd, &event, sizeof(event));
+
+    dprintf(2, "%x %x %x %x\n", event.wd, event.mask, event.cookie, event.len);
 
     // Kill all processes in our process group.
     kill(kill_pid, SIGKILL);
