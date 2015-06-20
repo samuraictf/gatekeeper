@@ -363,12 +363,12 @@ int main(int argc, char * argv[])
         }
         /* read in data from the socket that is ready */
         if (FD_ISSET(listen_fd_r, &readfds)) {
-            if (proxy_packet(listen_fd_r, remote_fd_r, in_pcre_list, in_ringbuf) < 0) {
+            if (proxy_packet(listen_fd_r, remote_fd_w, in_pcre_list, in_ringbuf) < 0) {
                 goto cleanup;
             }
         }
         if (FD_ISSET(remote_fd_r, &readfds)) {
-            if (proxy_packet(remote_fd_r, listen_fd_r, out_pcre_list, out_ringbuf) < 0) {
+            if (proxy_packet(remote_fd_r, listen_fd_w, out_pcre_list, out_ringbuf) < 0) {
                 goto cleanup;
             }
         }
