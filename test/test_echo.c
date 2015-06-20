@@ -15,24 +15,69 @@ int main( int argc, char* argv[] )
     struct termios  termios_old;
     struct termios  termios_new;
     int             ch;
+    int             c;
+    int             mode_buffer = -1;
+    int             mode_echo = 0;
 
-    tcgetattr( 0, &termios_old );
-    termios_new = termios_old;
-    termios_new.c_lflag &= ( ~ICANON & ~ECHO );
-    tcsetattr( 0, TCSANOW, &termios_new );
+    while ((c = getopt(argc, argv, "uelf")) != -1) 
+    {
+        switch(c)
+        {
+            case 'u':   // unbuffered
+                mode_buffer = _IONBF;
+                break;
+
+            case 'l':   // line buffered
+                mode_buffer = _IOLBF;
+                break;
+
+            case 'f':
+                mode_buffer = _IOFBF;
+                break;
+
+            case 'e':
+                mode_echo = 1;
+                break;
+
+        }
+    }
+
+    if( mode_buffer != -1 )
+    {
+        setvbuf( stdin, NULL, mode_buffer, 0 );
+        setvbuf( stdout, NULL, mode_buffer, 0 );
+    }
+
+    printf("{START}: %d\n", mode_buffer);
+    //fflush(stdout);
+    
+    if( 0==mode_echo )
+    {
+        printf("Disabling echo\n");
+        tcgetattr( 0, &termios_old );
+        termios_new = termios_old;
+        termios_new.c_lflag &= ( ~ICANON & ~ECHO );
+        //termios_new.c_lflag &=  ~ECHO ;
+
+        tcsetattr( 0, TCSANOW, &termios_new );
+    }
+        
+
 
     do
     {
         ch = getc(stdin);
-        if( ch == EOT )
+        if( ch == EOT || ch==EOF || ch==-1 )
         {
             break;
         }
         //ch ^= 0x20;
         fprintf( stdout, "(%x)", ch);
+        //fflush(stdout);
     } while (1);
 
     tcsetattr( 0, TCSANOW, &termios_old );
+    printf("{STOP}\n");
 
     return 0;
 }
