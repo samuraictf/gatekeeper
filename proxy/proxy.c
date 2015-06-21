@@ -117,8 +117,7 @@ void pump_execvp(char** argv)
     size_t buffer_allocated = 4096;
     void * buffer = malloc(buffer_allocated);
 
-    int done = 0;
-    while (!done)
+    while (1)
     {
         //
         // Find out which file descriptors have data, or not.
@@ -138,13 +137,15 @@ void pump_execvp(char** argv)
         if(good_fds == 0)
         {
             // Everything closed nicely.
-            break;
+            kill(SIGKILL, child_pid);
+            return;
         }
 
         if (poll(pollfds, 3, -1) <= 0)
         {
             // An error occurred while polling.
-            break;
+            kill(SIGKILL, child_pid);
+            return;
         }
 
 
@@ -194,8 +195,8 @@ READLOOP:;
 
                     // A callback failed.  Be safe, shut down.
                     if(rv != CB_OKAY) {
-                        done = 1;
-                        break;
+                        kill(SIGKILL, child_pid);
+                        return;
                     }
 
                     p_callback++;
@@ -219,8 +220,8 @@ READLOOP:;
                     // In either case, we should die.
                     if (n_written < 0)
                     {
-                        done = 1;
-                        break;
+                        kill(SIGKILL, child_pid);
+                        return;
                     }
                 }
             }
@@ -248,13 +249,16 @@ READLOOP:;
                         close(sink);
 
                     sources[i] = -1;
+
+                    // If the child's stdout closes, assume there's nothing
+                    // left to proxy.
+                    if(sink == STDOUT_FILENO)
+                        return;
                 }
             }
 
         } // for each fd
     } // while(1)
-
-    waitpid(child_pid, NULL, 0);
 }
 
 void register_io_callback(int fd, callback_fn function, void* ctx)
