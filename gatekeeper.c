@@ -41,13 +41,19 @@ void usage(void)
 void
 nonblocking_set(int fd )
 {
-    int flags = fcntl(fd, F_GETFL);
+    int flags = fcntl(fd, F_GETFL, 0);
     if( -1 == flags )
         perror("fcntl(fd, F_GETFL);");
 
     flags |= O_NONBLOCK;
-    if( fcntl(fd, flags ) )
-        perror("fcntl()");
+    if( fcntl(fd, F_SETFL, flags ) )
+    {
+        printf("!F_SETFL(%d)\n", fd);
+    }
+    if( fcntl( fd, F_SETPIPE_SZ, 1) )
+    {
+        printf("!F_SETPIPE_SZ(%d)\n", fd);
+    }
 }
 
 void
@@ -56,12 +62,12 @@ buffering_disable(int fd)
     struct termios  termios_old;
     struct termios  termios_new;
     int             sc;
-    /*
+    
 
     setvbuf(stdin, (char*) NULL, _IONBF, 0);
     setvbuf(stdout, (char*) NULL, _IONBF, 0);
     setvbuf(stderr, (char*) NULL, _IONBF, 0);
-    */
+    
 
     //printf("Disabling echo\n");
     tcgetattr( fd, &termios_old );
@@ -81,13 +87,18 @@ buffering_disable(int fd)
     }
 }
 
-
+int
+pipe_wrap( int pipefd[] )
+{
+    return pipe(pipefd);
+   // return pipe2( pipefd, O_NONBLOCK );
+}
 
 int
 dup_raw( int oldfd, int newfd )
 {
-    nonblocking_set(oldfd);
-    nonblocking_set(newfd);
+    //nonblocking_set(oldfd);
+    //nonblocking_set(newfd);
     printf("%d->%d\n", oldfd, newfd);
     return dup2(oldfd, newfd);
 }
@@ -141,7 +152,6 @@ int main(int argc, char * argv[])
     pcre_list_t * in_pcre_list  = NULL;
     pcre_list_t * out_pcre_list = NULL;
     struct rlimit rl;
-    //fd_set readfds;
 
     /* initialize globals*/
     debugging = 0;
@@ -149,6 +159,8 @@ int main(int argc, char * argv[])
 
     memset(&log_addr, 0, sizeof(log_addr));
     memset(&rl, 0, sizeof(rl));
+
+
 
     /* capture environment configurations */
     listenstr           = getenv("GK_LISTENSTR");
@@ -419,39 +431,64 @@ int main(int argc, char * argv[])
     printf("remote_fd_r: %d\n", remote_fd_r );
     printf("remote_fd_w: %d\n", remote_fd_w );
 
+    
+    //buffering_disable(listen_fd_r);
+    //buffering_disable(listen_fd_w);
+    //buffering_disable(remote_fd_r);
+    //buffering_disable(remote_fd_w);
+    
+
+    for( int i=0; i<highest_fd; i++)
+    {
+        //buffering_disable(i);
+        //nonblocking_set(i);
+    }
+
+
+
     buffering_disable(listen_fd_r);
-    buffering_disable(listen_fd_w);
-
-    
     buffering_disable(remote_fd_r);
-    buffering_disable(remote_fd_w);
-    
-
-    struct pollfd pollfds[2];
-
 
     nonblocking_set(listen_fd_r);
-    nonblocking_set(remote_fd_w);
+    nonblocking_set(remote_fd_r);
+    //nonblocking_set(listen_fd_w);
+    //nonblocking_set(remote_fd_w);
+
+
+#define MODE_NONBLOCK
+
 
     while (1) {
-/*
+
+#ifdef MODE_NONBLOCK
         size_t n;
         char ch;
 
-        n = read( listen_fd_r, &ch, 1 );
-        if( n==1 )
-        {
-            write( remote_fd_w, &ch, 1 );
-        }
-
+        fflush(stdin); fflush(stdout);
+        //printf("<\n");
         n = read( remote_fd_r, &ch, 1 );
         if( n==1 )
         {
+            //printf("***\n");
             write( listen_fd_w, &ch, 1 );
         }
-*/
+        //printf(">\n");
+        fflush(stdin); fflush(stdout);
+
+        //printf("[\n");
+        n = read( listen_fd_r, &ch, 1 );
+        if( n==1 )
+        {
+            printf("---\n");
+            write( remote_fd_w, &ch, 1 );
+        }
+        //printf("]\n");
+#endif
 
 
+#ifdef MODE_POLL
+
+        struct pollfd pollfds[2];
 
         pollfds[0].fd = listen_fd_r;
         pollfds[1].fd = remote_fd_r;
@@ -463,7 +500,7 @@ int main(int argc, char * argv[])
 
             if( pollfds[0].revents & POLLIN )
             {
-                printf("--->\n");
+                printf("***\n");
                 if (proxy_packet(listen_fd_r, remote_fd_w, in_pcre_list, in_ringbuf) < 0) {
                     goto cleanup;
                 }
@@ -472,15 +509,18 @@ int main(int argc, char * argv[])
 
             if( pollfds[1].revents & POLLIN )
             {
-                printf("<***\n");
+                printf("---\n");
                 if (proxy_packet(remote_fd_r, listen_fd_w, out_pcre_list, out_ringbuf) < 0) {
                     goto cleanup;
                 }
             }
         }
+#endif
 
+#ifdef MODE_SELECT
         /* move out of loop and memcpy from tmp variable instead? maybe later. */
-        /*
+        fd_set readfds;
+
         FD_ZERO(&readfds);
         FD_SET(listen_fd_r, &readfds);
         FD_SET(remote_fd_r, &readfds);
@@ -502,12 +542,13 @@ int main(int argc, char * argv[])
                 goto cleanup;
             }
         }
-        */
-
+#endif
     }
 
 
+
 cleanup:
+    printf("cleanup:\n");
     if (listen_fd_r != -1)
         close(listen_fd_r);
     if (listen_fd_w != -1)
@@ -658,8 +699,11 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
             dup_raw(1, 2);
         } else if (local == REMOTE || local == REMOTE_RAND_ENV) {
             /* set up pipes. pipe names are from the child (remote) process perspective */
-            pipe(in_pipe);
-            pipe(out_pipe);
+            pipe_wrap(in_pipe);
+            pipe_wrap(out_pipe);
+
+               // return pipe2( pipefd, O_NONBLOCK );
+
 
 
             pid = fork();
@@ -675,6 +719,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                     Log("Invalid remote string, stdio specified without a ':' followed by a program to run. i.e. \"stdio:/bin/cat foo\"\n");
                     return FAILURE;
                 }
+
 
                 /* build up an argv */
                 /* count the number of spaces for arguments */
@@ -706,13 +751,18 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                 close(in_pipe[1]);
                 close(out_pipe[0]);
 
-                buffering_disable(0);
-                buffering_disable(1);
+
 
                 /* dup stdio to proper pipes */
                 dup_raw(in_pipe[0], 0);
                 dup_raw(out_pipe[1], 1);
                 dup_raw(out_pipe[1], 2);
+
+                buffering_disable(0);
+                buffering_disable(1);
+
+                //nonblocking_set(0);
+                //nonblocking_set(1);
 
                 if (local == REMOTE_RAND_ENV) {
                     envp = build_rand_envp();

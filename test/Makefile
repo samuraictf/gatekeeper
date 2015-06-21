@@ -1,6 +1,6 @@
 CC:=clang
 
-PROGGIES=test_echo
+PROGGIES=test_echo test_binary
 
 %: %.c
 	$(CC) -o $@ $< $(CFLAGS)
