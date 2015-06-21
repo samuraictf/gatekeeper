@@ -4,13 +4,8 @@
 #include <sched.h>
 #include <linux/sched.h>
 
-int main(int argc, char** argv) {
-    if(argc < 2) {
-        printf("Usage: %s <dir> argv0 argv1\n", argv[0]);
-        exit(1);
-    }
+void do_chroot(char* path) {
     unshare(CLONE_NEWUSER);
-    chdir(argv[1]);
+    chdir(path);
     chroot(".");
-    execvp(argv[2], &argv[2]);
 }
