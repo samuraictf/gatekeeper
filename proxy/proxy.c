@@ -252,7 +252,7 @@ READLOOP:;
 
                     // If the child's stdout closes, assume there's nothing
                     // left to proxy.
-                    if(sink == STDOUT_FILENO)
+                    if(sink == STDOUT_FILENO || sink == STDERR_FILENO)
                         return;
                 }
             }
