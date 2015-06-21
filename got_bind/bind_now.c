@@ -4,11 +4,6 @@
 #include <sched.h>
 #include <linux/sched.h>
 
-int main(int argc, char** argv) {
-    if(argc < 2) {
-        printf("Usage: %s <dir> argv0 argv1\n", argv[0]);
-        exit(1);
-    }
+void set_bind_now() {
     setenv("LD_BIND_NOW", "1", 1);
-    execvp(argv[1], &argv[1]);
 }
