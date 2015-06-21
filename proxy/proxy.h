@@ -1,20 +1,6 @@
 #pragma once
-#define _GNU_SOURCE
-#include <unistd.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <sched.h>
-#include <linux/sched.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <pcre.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <string.h>
-#include <poll.h>
-#include <signal.h>
 
 /**
  * Callback return values.

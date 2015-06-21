@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "proxy.h"
 
 callback_rv data_in(void* ctx, void** ppbuf, size_t* psize, size_t* palloc)

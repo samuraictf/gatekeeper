@@ -1,3 +1,20 @@
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sched.h>
+#include <linux/sched.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <pcre.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <string.h>
+#include <poll.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include "proxy.h"
 
 static int max(int a, int b) { return a>b?a:b; }
@@ -8,9 +25,9 @@ typedef struct {
     void *ctx;
 }  registered_callback;
 
-const size_t MAX_CALLBACKS = 64;
+#define MAX_CALLBACKS 64
 
-int child_fd;
+int child_pid;
 
 registered_callback stdin_callbacks[MAX_CALLBACKS+1] = {0};
 registered_callback stdout_callbacks[MAX_CALLBACKS+1] = {0};
@@ -48,12 +65,18 @@ void pump_execvp(char** argv)
     std_err_read    = pipes[0];
     std_err_write   = pipes[1];
 
-    child_fd = fork();
+    child_pid = fork();
 
-    if(child_fd == 0) {
-        dup2(std_in_read,  STDIN_FILENO);
-        dup2(std_out_write, STDOUT_FILENO);
-        dup2(std_err_write, STDERR_FILENO);
+    if(child_pid == 0) {
+        if(stdin_callbacks[0].function) {
+            dup2(std_in_read,  STDIN_FILENO);
+        }
+        if(stdout_callbacks[0].function) {
+            dup2(std_out_write, STDOUT_FILENO);
+        }
+        if(stderr_callbacks[0].function) {
+            dup2(std_err_write, STDERR_FILENO);
+        }
         execvp(argv[0], &argv[0]);
         exit(-1);
     }
@@ -76,13 +99,26 @@ void pump_execvp(char** argv)
     int sinks[] = { std_in_write, STDOUT_FILENO, STDERR_FILENO };
     int i = 0;
 
+    if(!stdin_callbacks[0].function) {
+        sources[STDIN_FILENO] = -1;
+        sinks[STDIN_FILENO] = -1;
+    }
+    if(!stdout_callbacks[0].function) {
+        sources[STDOUT_FILENO] = -1;
+        sinks[STDOUT_FILENO] = -1;
+    }
+    if(!stderr_callbacks[0].function) {
+        sources[STDERR_FILENO] = -1;
+        sinks[STDERR_FILENO] = -1;
+    }
+
     // Buffer management.
     size_t buffer_used = 0;
     size_t buffer_allocated = 4096;
-    char * buffer = malloc(buffer_allocated);
+    void * buffer = malloc(buffer_allocated);
 
-
-    while (1)
+    int done = 0;
+    while (!done)
     {
         //
         // Find out which file descriptors have data, or not.
@@ -102,13 +138,13 @@ void pump_execvp(char** argv)
         if(good_fds == 0)
         {
             // Everything closed nicely.
-            return;
+            break;
         }
 
         if (poll(pollfds, 3, -1) <= 0)
         {
             // An error occurred while polling.
-            return;
+            break;
         }
 
 
@@ -158,7 +194,8 @@ READLOOP:;
 
                     // A callback failed.  Be safe, shut down.
                     if(rv != CB_OKAY) {
-                        return;
+                        done = 1;
+                        break;
                     }
 
                     p_callback++;
@@ -174,7 +211,7 @@ READLOOP:;
                     position += n_written)
                 {
 
-                    n_written = write(sink, &buffer[position], buffer_used);
+                    n_written = write(sink, (char*)buffer + position, buffer_used);
 
                     // A write failed.  This means that either the child is
                     // dead / closed its STDIN, or our own STDOUT is closed.
@@ -182,7 +219,8 @@ READLOOP:;
                     // In either case, we should die.
                     if (n_written < 0)
                     {
-                        return;
+                        done = 1;
+                        break;
                     }
                 }
             }
@@ -215,6 +253,8 @@ READLOOP:;
 
         } // for each fd
     } // while(1)
+
+    waitpid(child_pid, NULL, 0);
 }
 
 void register_io_callback(int fd, callback_fn function, void* ctx)
