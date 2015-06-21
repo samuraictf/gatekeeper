@@ -1,5 +1,10 @@
 #include "gatekeeper.h"
 
+
+#include <termios.h>
+#include <poll.h>
+
+
 int log_fd;
 struct in_addr log_addr;
 int debugging;
@@ -23,7 +28,7 @@ void usage(void)
     printf("      -D optional output extra debugging information\n");
     printf("         (WARNING: using -D without -o will send debugging info to stderr.  NEVER\n");
     printf("         do this in a live environment) GK_DEBUG\n");
-    printf("      -f optional randomize file descriptors by opening /dev/urandom several times GK_RANDFD\n");
+    printf("      -f optional randomize file descriptors by opening /dev/urandom several times GK_RANDsetf\n");
     printf("      -I <optional path to text file of regexs to match INPUT traffic against> GK_INPUT_REGEXFILE\n");
     printf("      -O <optional path to text file of regexs to match OUTPUT traffic against> GK_OUTPUT_REGEXFILE\n");
     printf("      -b <optional path to text file of IP's to blacklist> GK_BLACKLIST_IP\n");
@@ -31,6 +36,63 @@ void usage(void)
     printf("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
     printf("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
 }
+
+
+void
+nonblocking_set(int fd )
+{
+    int flags = fcntl(fd, F_GETFL);
+    if( -1 == flags )
+        perror("fcntl(fd, F_GETFL);");
+
+    flags |= O_NONBLOCK;
+    if( fcntl(fd, flags ) )
+        perror("fcntl()");
+}
+
+void
+buffering_disable(int fd)
+{
+    struct termios  termios_old;
+    struct termios  termios_new;
+    int             sc;
+    /*
+
+    setvbuf(stdin, (char*) NULL, _IONBF, 0);
+    setvbuf(stdout, (char*) NULL, _IONBF, 0);
+    setvbuf(stderr, (char*) NULL, _IONBF, 0);
+    */
+
+    //printf("Disabling echo\n");
+    tcgetattr( fd, &termios_old );
+    termios_new = termios_old;
+    termios_new.c_lflag &=  ~ICANON;
+    //termios_new.c_lflag &=  ~ECHO ;
+
+    //termios_new.c_lflag &= (~ICANON);
+    termios_new.c_cc[VTIME] = 0;
+    termios_new.c_cc[VMIN] = 1;
+
+    sc = tcsetattr( fd, TCSADRAIN, &termios_new );
+    if( -1 == sc )
+    {
+        printf("Unable to tcsetattr(%d)\n", fd );
+        perror(NULL);
+    }
+}
+
+
+
+int
+dup_raw( int oldfd, int newfd )
+{
+    nonblocking_set(oldfd);
+    nonblocking_set(newfd);
+    printf("%d->%d\n", oldfd, newfd);
+    return dup2(oldfd, newfd);
+}
+
+
 
 /*
  * Entry point. Performs argument parsing and validation. Sets up log socket, listen socket, and enters
@@ -79,7 +141,7 @@ int main(int argc, char * argv[])
     pcre_list_t * in_pcre_list  = NULL;
     pcre_list_t * out_pcre_list = NULL;
     struct rlimit rl;
-    fd_set readfds;
+    //fd_set readfds;
 
     /* initialize globals*/
     debugging = 0;
@@ -352,26 +414,96 @@ int main(int argc, char * argv[])
     /*  listen_fd_r -> remote_fd_w
         remote_fd_r -> listen_fd_w */
 
+    printf("listen_fd_r: %d\n", listen_fd_r );
+    printf("listen_fd_w: %d\n", listen_fd_w );
+    printf("remote_fd_r: %d\n", remote_fd_r );
+    printf("remote_fd_w: %d\n", remote_fd_w );
+
+    buffering_disable(listen_fd_r);
+    buffering_disable(listen_fd_w);
+
+    
+    buffering_disable(remote_fd_r);
+    buffering_disable(remote_fd_w);
+    
+
+    struct pollfd pollfds[2];
+
+
+    nonblocking_set(listen_fd_r);
+    nonblocking_set(remote_fd_w);
+
     while (1) {
+/*
+        size_t n;
+        char ch;
+
+        n = read( listen_fd_r, &ch, 1 );
+        if( n==1 )
+        {
+            write( remote_fd_w, &ch, 1 );
+        }
+
+        n = read( remote_fd_r, &ch, 1 );
+        if( n==1 )
+        {
+            write( listen_fd_w, &ch, 1 );
+        }
+*/
+
+
+
+        pollfds[0].fd = listen_fd_r;
+        pollfds[1].fd = remote_fd_r;
+        pollfds[0].events = POLLIN;
+        pollfds[1].events = POLLIN;
+
+        if( poll(pollfds, 2, 0) >0 )
+        {  
+
+            if( pollfds[0].revents & POLLIN )
+            {
+                printf("--->\n");
+                if (proxy_packet(listen_fd_r, remote_fd_w, in_pcre_list, in_ringbuf) < 0) {
+                    goto cleanup;
+                }
+            }
+
+
+            if( pollfds[1].revents & POLLIN )
+            {
+                printf("<***\n");
+                if (proxy_packet(remote_fd_r, listen_fd_w, out_pcre_list, out_ringbuf) < 0) {
+                    goto cleanup;
+                }
+            }
+        }
+
         /* move out of loop and memcpy from tmp variable instead? maybe later. */
+        /*
         FD_ZERO(&readfds);
         FD_SET(listen_fd_r, &readfds);
         FD_SET(remote_fd_r, &readfds);
+        fflush(stdin);
+        fflush(stdout);
         if (select(highest_fd + 1, &readfds, NULL, NULL, NULL) == -1) {
             Log("select() threw an error: %s\n", strerror(errno));
             goto cleanup;
         }
-        /* read in data from the socket that is ready */
+        if (FD_ISSET(remote_fd_r, &readfds)) {
+            printf("<\n");
+            if (proxy_packet(remote_fd_r, listen_fd_w, out_pcre_list, out_ringbuf) < 0) {
+                goto cleanup;
+            }
+        }        
         if (FD_ISSET(listen_fd_r, &readfds)) {
+            printf(">\n");
             if (proxy_packet(listen_fd_r, remote_fd_w, in_pcre_list, in_ringbuf) < 0) {
                 goto cleanup;
             }
         }
-        if (FD_ISSET(remote_fd_r, &readfds)) {
-            if (proxy_packet(remote_fd_r, listen_fd_w, out_pcre_list, out_ringbuf) < 0) {
-                goto cleanup;
-            }
-        }
+        */
+
     }
 
 
@@ -418,6 +550,7 @@ int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, ring
             return -1;
         }
     }
+    printf("[%d] %d -> %d\n", num_bytes, socket_src, socket_dst );
     if (write(socket_dst, recvbuf, num_bytes) != num_bytes) {
         Log("Huh? Couldn't write all available data to remote_fd...\n");
         /* fail here? */
@@ -469,6 +602,8 @@ int setup_logsocket(char * logsrvstr)
     return SUCCESS;
 }
 
+
+
 /*
  * Takes in the instr and returns two fd's, one for output one for input
  * in all socket type connections the fd's are the same value.
@@ -515,14 +650,17 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                     0 != setvbuf(stderr, (char*) NULL, _IONBF, 0)) {
                 return FAILURE;
             }
+
+
             fd_r = 0;
             fd_w = 1;
             /* redirect stderr to stdout so we only have 2 fd's to deal with */
-            dup2(1, 2);
+            dup_raw(1, 2);
         } else if (local == REMOTE || local == REMOTE_RAND_ENV) {
             /* set up pipes. pipe names are from the child (remote) process perspective */
             pipe(in_pipe);
             pipe(out_pipe);
+
 
             pid = fork();
             if (pid == -1) {
@@ -568,10 +706,13 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                 close(in_pipe[1]);
                 close(out_pipe[0]);
 
+                buffering_disable(0);
+                buffering_disable(1);
+
                 /* dup stdio to proper pipes */
-                dup2(in_pipe[0], 0);
-                dup2(out_pipe[1], 1);
-                dup2(out_pipe[1], 2);
+                dup_raw(in_pipe[0], 0);
+                dup_raw(out_pipe[1], 1);
+                dup_raw(out_pipe[1], 2);
 
                 if (local == REMOTE_RAND_ENV) {
                     envp = build_rand_envp();

@@ -18,8 +18,9 @@ int main( int argc, char* argv[] )
     int             c;
     int             mode_buffer = -1;
     int             mode_echo = 0;
+    int             mode_flush = 0;
 
-    while ((c = getopt(argc, argv, "uelf")) != -1) 
+    while ((c = getopt(argc, argv, "uelfz")) != -1) 
     {
         switch(c)
         {
@@ -39,6 +40,11 @@ int main( int argc, char* argv[] )
                 mode_echo = 1;
                 break;
 
+            case 'z':
+                mode_flush = 1;
+                break;
+
+
         }
     }
 
@@ -49,11 +55,12 @@ int main( int argc, char* argv[] )
     }
 
     printf("{START}: %d\n", mode_buffer);
-    //fflush(stdout);
+    fflush(stdout);
     
     if( 0==mode_echo )
     {
         printf("Disabling echo\n");
+        fflush(stdout);
         tcgetattr( 0, &termios_old );
         termios_new = termios_old;
         termios_new.c_lflag &= ( ~ICANON & ~ECHO );
@@ -73,7 +80,8 @@ int main( int argc, char* argv[] )
         }
         //ch ^= 0x20;
         fprintf( stdout, "(%x)", ch);
-        //fflush(stdout);
+        if( mode_flush )
+            fflush(stdout);
     } while (1);
 
     tcsetattr( 0, TCSANOW, &termios_old );
