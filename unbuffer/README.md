@@ -10,13 +10,15 @@ This works because `eglibc` disables buffering on `stdin` and `stdout` if they l
 
 ## example
 
-Normally, processes which detect that `stdin` is a pipe do processing in batch mode.  In the example below, Python does not actually print the data
+Normally, processes which detect that `stdin` is a pipe do processing in batch mode.  In the example below, Python does not actually execute the `print` command until `stdin` closes.
 
 ```sh
 $ (echo "print 'python'"; sleep 1; echo bash>&2; sleep 1;) | python
 bash
 python
 ```
+
+Here, it executes the `print` command immediately.
 
 ```sh
 $ (echo "print 'python'"; sleep 1; echo bash>&2; sleep 1;) | ./unbuffer python
