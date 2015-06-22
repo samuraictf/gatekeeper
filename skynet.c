@@ -1,18 +1,20 @@
 #include "skynet.h"
 
-#include <string.h>
-#include <unistd.h>
+#include <fcntl.h>
 #include <limits.h>
-#include <sys/time.h>
 #include <stdio.h>
-       #include <sys/types.h>
-       #include <sys/stat.h>
-       #include <fcntl.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
+
+#define MIN3(a, b, c) ((a) < (b) ? ((a) < (c) ? (a) : (c)) : ((b) < (c) ? (b) : (c)))
 
 
 //////////////////////////////////////////////////////////////////////////////
-//
+// Skynet_new()
 //////////////////////////////////////////////////////////////////////////////
 Skynet*
 Skynet_new( double cutoff )
@@ -29,7 +31,7 @@ Skynet_new( double cutoff )
 
 
 //////////////////////////////////////////////////////////////////////////////
-//
+// Skynet_delete()
 //////////////////////////////////////////////////////////////////////////////
 void
 Skynet_delete( Skynet* self )
@@ -40,7 +42,10 @@ Skynet_delete( Skynet* self )
 
 
 //////////////////////////////////////////////////////////////////////////////
+// Skynet_savePacket()
 //
+// Saves a packet to the filesystem to train for baseline
+// XXX This would be better off on a remote box...
 //////////////////////////////////////////////////////////////////////////////
 static int
 Skynet_savePacket( Skynet* self, char buf[], size_t nbytes )
@@ -59,7 +64,7 @@ Skynet_savePacket( Skynet* self, char buf[], size_t nbytes )
         nbytes
     );
 
-    int fd = open( filePath, O_CLOEXEC | O_CREAT | O_WRONLY ,  S_IRUSR);
+    int fd = open( filePath, O_CLOEXEC | O_CREAT | O_WRONLY,  S_IRUSR);
     if( fd<0 )
         return -1;
 
@@ -95,7 +100,6 @@ Skynet_processPacket( Skynet* self, int fd, char buf[], size_t nbytes )
 
 
 
-#define MIN3(a, b, c) ((a) < (b) ? ((a) < (c) ? (a) : (c)) : ((b) < (c) ? (b) : (c)))
 
 /*
 int 
@@ -140,20 +144,30 @@ damlev2( char* a, size_t a_d,  char* b, size_t b_d )
 }
 */
 
- 
-int levenshtein(char *a, size_t a_len, char *b, size_t b_len ) {
-    size_t x, y, lastdiag, olddiag;
-    a_len = strlen(a);
-    b_len = strlen(b);
-    unsigned int column[a_len+1];
+
+//////////////////////////////////////////////////////////////////////////
+// XXX makes this damerau levenshtein later
+//////////////////////////////////////////////////////////////////////////
+int levenshtein(char *a, size_t a_len, char *b, size_t b_len ) 
+{
+    size_t          x;
+    size_t          y;
+    size_t          diagLast;
+    size_t          diagOld;
+    unsigned int    column[a_len+1];
+
     for (y = 1; y <= a_len; y++)
         column[y] = y;
-    for (x = 1; x <= b_len; x++) {
+    for (x = 1; x <= b_len; x++) 
+    {
         column[0] = x;
-        for (y = 1, lastdiag = x-1; y <= a_len; y++) {
-            olddiag = column[y];
-            column[y] = MIN3(column[y] + 1, column[y-1] + 1, lastdiag + (a[y-1] == b[x-1] ? 0 : 1));
-            lastdiag = olddiag;
+        for (y = 1, diagLast = x-1; y <= a_len; y++) 
+        {
+            diagOld = column[y];
+            column[y] = MIN3(column[y] + 1, 
+                column[y-1] + 1, 
+                diagLast + (a[y-1] == b[x-1] ? 0 : 1));
+            diagLast = diagOld;
         }
     }
     return(column[a_len]);
@@ -171,11 +185,11 @@ damlev_test()
 
     Pair pairs[] = 
     {
-        { "aa", "aa", 0 },
-        { "aa", "ba", 1 },
-        { "abcd", "Xabcd", 1 }, 
-        { "abcd", "ABCD", 4 },
-        { NULL, NULL, 0 }
+        { "aa",     "aa",       0 },
+        { "aa",     "ba",       1 },
+        { "abcd",   "Xabcd",    1 }, 
+        { "abcd",   "ABCD",     4 },
+        { NULL,     NULL,       0 }
     };
 
     for( int i=0; pairs[i].a!=NULL; i++)

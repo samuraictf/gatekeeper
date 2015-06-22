@@ -27,6 +27,7 @@ void usage(void)
     printf("      -I <optional path to text file of regexs to match INPUT traffic against> GK_INPUT_REGEXFILE\n");
     printf("      -O <optional path to text file of regexs to match OUTPUT traffic against> GK_OUTPUT_REGEXFILE\n");
     printf("      -b <optional path to text file of IP's to blacklist> GK_BLACKLIST_IP\n");
+    printf("      -s <unimplemented skynet / machine learning cutoff>\n");
     printf("   example usage: gatekeeper -l stdio -r stdio:/home/atmail/atmail -o 10.0.0.2:2090\n");
     printf("                  gatekeeper -l tcpipv4:0.0.0.0:1234 -r stdio:/home/atmail/atmail -a 5\n");
     printf("                  gatekeeper -l tcpipv6:[::]:1234 -r stdio:/home/atmail/atmail\n\n");
