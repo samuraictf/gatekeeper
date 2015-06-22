@@ -80,6 +80,7 @@ int main(int argc, char * argv[])
     pcre_list_t * out_pcre_list = NULL;
     struct rlimit rl;
     fd_set readfds;
+    Skynet*  skynet             = NULL;
 
     /* initialize globals*/
     debugging = 0;
@@ -155,7 +156,7 @@ int main(int argc, char * argv[])
     }
 
     /* cmdline parse, environment configurations take precident */
-    while ((c = getopt(argc, argv, "hDtI:O:l:r:k:o:c:a:dfeb:")) != -1) {
+    while ((c = getopt(argc, argv, "hDtI:O:l:r:k:o:c:a:dfeb:s:")) != -1) {
         switch (c) {
         case 'h':
             /* help and exit*/
@@ -239,6 +240,12 @@ int main(int argc, char * argv[])
                 blacklist_ip_fname = optarg;
             }
             break;
+        case 's':
+        {
+            double cutoff = atof(optarg);
+            skynet = Skynet_new(cutoff);
+            break;
+        }
         case '?':
             /* help */
             usage();
@@ -363,12 +370,12 @@ int main(int argc, char * argv[])
         }
         /* read in data from the socket that is ready */
         if (FD_ISSET(listen_fd_r, &readfds)) {
-            if (proxy_packet(listen_fd_r, remote_fd_w, in_pcre_list, in_ringbuf) < 0) {
+            if (proxy_packet(listen_fd_r, remote_fd_w, in_pcre_list, in_ringbuf, NULL ) < 0) {
                 goto cleanup;
             }
         }
         if (FD_ISSET(remote_fd_r, &readfds)) {
-            if (proxy_packet(remote_fd_r, listen_fd_w, out_pcre_list, out_ringbuf) < 0) {
+            if (proxy_packet(remote_fd_r, listen_fd_w, out_pcre_list, out_ringbuf, skynet ) < 0) {
                 goto cleanup;
             }
         }
@@ -392,10 +399,11 @@ cleanup:
         ringbuffer_free(out_ringbuf);
     free_list(in_pcre_list);
     free_list(out_pcre_list);
+    Skynet_delete(skynet);
     return SUCCESS;
 }
 
-int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, ringbuffer_t *ring_buffer)
+int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, ringbuffer_t *ring_buffer, Skynet* skynet )
 {
     int num_bytes = 0;
     int ringbuf_cnt = 0;
@@ -418,6 +426,11 @@ int proxy_packet(int socket_src, int socket_dst, struct pcre_list *filters, ring
             return -1;
         }
     }
+    if( skynet )
+    {
+        Skynet_processPacket( skynet, socket_src, recvbuf, num_bytes );
+    }
+
     if (write(socket_dst, recvbuf, num_bytes) != num_bytes) {
         Log("Huh? Couldn't write all available data to remote_fd...\n");
         /* fail here? */

@@ -35,6 +35,7 @@ CFLAGS      += 	-fstack-protector-all \
 				-Wunreachable-code \
 				-Winline \
 				-Wfloat-equal \
+				-Wno-unused-parameter \
 				-Werror 
 LDFLAGS     += -Wl,-z,now -Wl,-z,relro -Wl,-z,noexecstack
 
