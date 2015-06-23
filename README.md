@@ -6,6 +6,14 @@ Each module is available as a stand-alone binary, which will either `fork` and `
 
 Each module is also available as a library, which can be compiled into a larger, monolithic binary.
 
+## Chaining Modules
+
+The modules are designed to be included in a larger project, or chained directly.  For example:
+
+```sh
+$ ./blacklist/blacklist ./pcap/pcap foo.pcap ./alarm/alarm 10 ./got_nobind/got_nobind ./malloc/malloc ./no_network/no_network ./randenv/randenv ./rlimit_cpu/rlimit_cpu 5 ./rlimit_fsize/rlimit_fsize 0 ./rlimit_nproc/rlimit_nproc 0 ./segv/segv MYSEGV ./setpgid/setpgid ./setsid/setsid sh
+```
+
 ## Modules
 
 Here's a short descrption of each module.  To build a module, just run `make` in its directory.
