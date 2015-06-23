@@ -10,30 +10,10 @@ struct range;
  * 1.2.3.4-1.2.3.5<NEWLINE>
  * 11.22.33.44-55.66.77.88<NEWLINE>
  *
- * @param  path
- * Path to the file
- *
- * @return
- * A NULL-terminated list of range objects.
+ * @param  string
+ * NULL-terminated string to parse.
  */
-struct range** parse_file(char* path);
-
-/**
- * Parses a single address range.
- * @param  a First address in the range.
- * @param  b Last address in the range.
- * @return Pointer to a range object.
- */
-struct range* parse_range(char* a, char* b);
-
-/**
- * Checks a packed IP address for being in an IP range.
- * @param  range   Range object
- * @param  address Sockaddr object
- * @param  size    Size of the sockaddr object, as returned by e.g. getpeername.
- * @return         1 if the address is a member
- */
-int check_range(struct range* r, struct sockaddr* address);
+void blacklist_parse(char* string);
 
 /**
  * Adds an IP range into the internal list of IPs to blacklist.

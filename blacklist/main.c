@@ -6,7 +6,7 @@
 #include "blacklist.h"
 
 int main(int main, char** argv) {
-    blacklist_range("127.0.0.0", "127.255.255.255");
+    blacklist_parse("127.0.0.0-127.255.255.255");
     blacklist_range("::1", "::1");
 
     if(blacklist_check_stdio()) {

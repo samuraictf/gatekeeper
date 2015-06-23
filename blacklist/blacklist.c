@@ -138,3 +138,20 @@ int blacklist_check_stdio() {
 
     return 0;
 }
+
+void blacklist_parse(char* string)
+{
+    if(!string || !strlen(string))
+        return;
+
+    char * delim = "-\n";
+    char * start = strtok(string, "-");
+    char * stop  = strtok(NULL, "\n");
+
+    while(start && stop) {
+        blacklist_range(start, stop);
+
+        start = strtok(NULL, "-");
+        stop  = strtok(NULL, "\n");
+    }
+}
