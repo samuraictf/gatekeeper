@@ -34,8 +34,6 @@
 #include <unistd.h>
 #include <libgen.h>
 
-#include "proxy.h"
-
 //******************************************************************************
 //                                PACKET HEADERS
 //******************************************************************************
@@ -187,18 +185,25 @@ max
 }
 
 
-callback_rv incoming_data(void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
+
+#ifdef __APPLE__
+int
+pipe2
+(
+    int fd[2],
+    int flags
+)
 {
-    std_in.buffer = *ppbuf;
-    build_and_save_packet(*psize, &std_in, &std_out, 0, 1);
-    return CB_OKAY;
+    int rc = pipe(fd);
+    fcntl(fd[0], F_SETFD, flags);
+    fcntl(fd[1], F_SETFD, flags);
+    return rc;
 }
-callback_rv outgoing_data(void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
-{
-    std_out.buffer = *ppbuf;
-    build_and_save_packet(*psize, &std_out, &std_in, 0, 1);
-    return CB_OKAY;
-}
+
+
+
+#endif
+
 
 //------------------------------------ MAIN ------------------------------------
 int
@@ -255,10 +260,48 @@ main
     std_out.sequence++;
     build_and_save_packet(0, &std_in, &std_out, 0, 1);      // ACK
 
-    register_io_callback(0, incoming_data, 0);
-    register_io_callback(1, outgoing_data, 0);
-    register_io_callback(2, outgoing_data, 0);
-    pump_execvp(&argv[2]);
+
+    //
+    // Main event loop.
+    //
+    // This continues until std_out on the child process gets closed.
+    //
+    while (1)
+    {
+        int     n;
+        fd_set  fdset;
+
+        FD_ZERO(&fdset);
+
+        FD_SET(std_in.source, &fdset);
+        FD_SET(std_out.source, &fdset);
+
+        n = select(max(std_out.source, std_in.source) + 1, &fdset, 0, 0, 0);
+
+        if (n <= 0)
+        {
+            break;
+        }
+
+
+        // Has new data arrived on std_in?
+        if (  FD_ISSET(std_in.source, &fdset)
+           && !record_and_forward(&std_in, &std_out))
+        {
+            // If std_in has closed/EOF, there may still be data avialable for
+            // is to read from std_out.  Close std_in on the child, and continue
+            // receiving data.  Generally this causes a SIGPIPE on the child and
+            // it exits, but there may be e.g. buffered data to read out.
+            close(std_in.sink);
+        }
+
+        // Has new data arrived on std_out?
+        if (  FD_ISSET(std_out.source, &fdset)
+           && !record_and_forward(&std_out, &std_in))
+        {
+            break;
+        }
+    }
 
     // Clean up
     pcap_dump_close(dumper);
@@ -369,6 +412,45 @@ build_and_save_packet
 
     pcap_dump((uint8_t *) dumper, &pcap_hdr, (uint8_t *) P);
     pcap_dump_flush(dumper);
+}
+
+
+
+//----------------------------- RECORD_AND_FORWARD -----------------------------
+/**
+ * Receive data from the source, record it, send it to the sink.
+ *
+ * Returns 0 if an error occurs.
+ */
+int
+record_and_forward
+(
+    proxied_socket  *in,
+    proxied_socket  *out
+)
+{
+    ssize_t bwrite  = 0;
+    ssize_t bread   = read(in->source, in->buffer, buffer_size);
+
+    if (bread <= 0)
+    {
+        return 0;
+    }
+
+    build_and_save_packet(bread, in, out, 0, 1);
+
+    while (bwrite < bread)
+    {
+        ssize_t n = write(in->sink, &in->buffer[bwrite], bread - bwrite);
+
+        if (n < 0)
+        {
+            return 0;
+        }
+
+        bwrite += n;
+    }
+    return 1;
 }
 
 
