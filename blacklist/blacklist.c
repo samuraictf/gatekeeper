@@ -112,11 +112,6 @@ void blacklist_range(char* start, char* stop)
     blacklisted_ranges[blacklisted_range_count++] = r;
 }
 
-/**
- * Checks whether any of the standard I/O sockets are blacklisted.
- *
- * @return 1 if any sockets are blacklisted, 0 otherwise
- */
 int blacklist_check_stdio() {
     for(int fd = STDOUT_FILENO; fd <= STDERR_FILENO; fd++) {
         socklen_t len = sizeof(struct sockaddr);
