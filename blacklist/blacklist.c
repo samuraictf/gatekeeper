@@ -139,7 +139,8 @@ void blacklist_parse(char* string)
     if(!string || !strlen(string))
         return;
 
-    char * delim = "-\n";
+    string = strdup(string);
+
     char * start = strtok(string, "-");
     char * stop  = strtok(NULL, "\n");
 
@@ -149,4 +150,6 @@ void blacklist_parse(char* string)
         start = strtok(NULL, "-");
         stop  = strtok(NULL, "\n");
     }
+
+    free(string);
 }

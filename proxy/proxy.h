@@ -13,6 +13,12 @@ typedef enum {
 /**
  * I/O callback hook function type.
  *
+ * @param fd
+ * File descriptor which this callback pertains to.
+ * For example, if it is set to STDIN_FILENO, buf points to new input.
+ * If it is instead STDOUT_FILENO or STDERR_FILENO, buf points to
+ * new output.
+ *
  * @param  ctx
  * Pointer to the structure passed to register_io_callback
  * as the ctx parameter.
@@ -33,7 +39,8 @@ typedef enum {
  * buf, buf_used, and buf_allocated_size may all be modified by
  * the callback.  buf should only be resized with realloc().
  */
-typedef callback_rv (*callback_fn)(void* ctx,
+typedef callback_rv (*callback_fn)(int fd,
+                                   void* ctx,
                                    void**  buf,
                                    size_t* buf_used,
                                    size_t* buf_allocated_size);
