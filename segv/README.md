@@ -1,6 +1,6 @@
 # segv
 
-Logs SIGSEGV to a file, with stack trace data provided by `libSigSegv.so` (which comes with glibc).  Segfaults are logged to `/tmp/segfault-$NAME-$timestamp`.
+Logs SIGSEGV to a file, with stack trace data provided by `libSigSegv.so` (which comes with glibc).  Segfaults are logged to `$TMPDIR/segfault-$NAME-$timestamp`.
 
 It's effectively a re-implementation of the `catchsegv.sh` shell script included with eglibc.
 
@@ -8,7 +8,7 @@ It's effectively a re-implementation of the `catchsegv.sh` shell script included
 
 ```sh
 $ ./segv test/test
-$ cat /tmp/segfault-NAME-1435032973
+$ cat $TMPDIR/segfault-*
 *** Segmentation fault
 Register dump:
 
