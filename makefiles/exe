@@ -1,7 +1,8 @@
 
 # -- Compilers --
-CC  := clang
-CXX := clang
+CC   := clang
+CXX  := clang++
+LINK := clang
 
 # -- Output files --
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
@@ -70,7 +71,7 @@ all: $(OUT)
 # =========================================================
 $(OUT): $(OBJ_FILES)
 	@echo Building binary $@ from [ $^ ]
-	$(CXX) $^ -o $@ $(LDFLAGS)
+	$(LINK) $^ -o $@ $(LDFLAGS)
 
 # Compile source files
 # These rules are rewritten into the dependencies file
