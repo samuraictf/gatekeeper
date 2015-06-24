@@ -9,6 +9,7 @@
 #include <string.h>
 #include <dlfcn.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #undef open
 
@@ -20,7 +21,7 @@ p_open real_open;
 int open(const char *pathname, int flags, mode_t mode)
 {
     if(0 == strcmp(pathname, "/dev/ctf"))
-        return 1023;
+        return dup(1023);
 
     return real_open(pathname, flags, mode);
 }
@@ -29,7 +30,6 @@ __attribute__((constructor))
 static int
 initialize()
 {
-    puts("HELLO");
     real_open = (p_open) dlsym(RTLD_NEXT, "open");
     return 0;
 }
