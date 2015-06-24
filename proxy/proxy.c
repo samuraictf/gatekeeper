@@ -137,14 +137,14 @@ void pump_execvp(char** argv)
         if(good_fds == 0)
         {
             // Everything closed nicely.
-            kill(SIGKILL, child_pid);
+            kill(child_pid, SIGKILL);
             return;
         }
 
         if (poll(pollfds, 3, -1) <= 0)
         {
             // An error occurred while polling.
-            kill(SIGKILL, child_pid);
+            kill(child_pid, SIGKILL);
             return;
         }
 
@@ -196,7 +196,7 @@ READLOOP:;
 
                     // A callback failed.  Be safe, shut down.
                     if(rv != CB_OKAY) {
-                        kill(SIGKILL, child_pid);
+                        kill(child_pid, SIGKILL);
                         return;
                     }
 
@@ -221,7 +221,7 @@ READLOOP:;
                     // In either case, we should die.
                     if (n_written < 0)
                     {
-                        kill(SIGKILL, child_pid);
+                        kill(child_pid, SIGKILL);
                         return;
                     }
                 }
