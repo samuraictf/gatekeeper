@@ -1,0 +1,98 @@
+#define _GNU_SOURCE 1
+#include <dlfcn.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <elf.h>
+#include <link.h>
+#include <string.h>
+
+void *dlopen(const char *filename, int flag);
+
+typedef int (*p_main)(int argc, char** argv, char** envp);
+
+p_main real_main = 0;
+void * real_libc_start_main;
+void * handle = 0;
+struct link_map * linkmap = 0;
+
+
+__attribute__((constructor))
+void initialize(int argc, char** argv, char** envp) {
+    //
+    // Because we effectively destroy the link map,
+    // the GOT must be fully resolved before this code
+    // is invoked.
+    //
+    if(0 == getenv("LD_BIND_NOW")) {
+        puts("f4IMfQEOAMI3U6SN");
+        exit(1);
+    }
+
+
+    handle = dlopen(NULL, RTLD_LAZY);
+
+    if(0 == handle || -1 == dlinfo(handle, RTLD_DI_LINKMAP, &linkmap)) {
+        puts("g2nb2nzGgMmsHWij");
+        exit(1);
+    }
+
+    dprintf(2, "%p\n", linkmap);
+
+    real_libc_start_main = dlsym(RTLD_NEXT, "__libc_start_main");
+}
+
+void fuck_up_link_map() {
+    while(linkmap) {
+        if(linkmap->l_name && strstr(linkmap->l_name, "/libc.so")) {
+            memset(linkmap->l_name, 0, strlen(linkmap->l_name));
+        }
+        linkmap = linkmap->l_next;
+    }
+}
+
+void exit(int status) {
+    // Because we have destroyed the link map, attempting to
+    // invoke the _fini destroctures for each loaded ELF object
+    // will result in a segfault.
+    //
+    // While this should not be visible to the user, it's cleaner
+    // if we just forcibly exit immediately.
+    puts("Adios, suckers");
+    _exit(status);
+}
+
+int my_main(int argc, char** argv, char** envp) {
+    fuck_up_link_map();
+    puts("HELLO WORLD");
+    dprintf(2, "%p\n", real_main);
+    int rv = real_main(argc, argv, envp);
+    puts("GOODBYE WORLD");
+    _exit(rv);
+}
+
+void* return_main() {
+    return &my_main;
+}
+void* return_real_libc_main() {
+    return real_libc_start_main;
+}
+void* return_where_to_store_main() {
+    return &real_main;
+}
+void debugbreak() {
+    // __asm__("int3");
+}
+
+int __libc_start_main() {
+    __asm__ (
+    // "movq %%rdi, 0(%2)\n"
+    "call debugbreak\n"
+    "call return_where_to_store_main\n"
+    "mov %rdi, (%rax)\n"
+    "call return_main\n"
+    "mov %rax, %rdi\n"
+    "call return_real_libc_main\n"
+    "jmpq *%rax\n");
+    return 0;
+}
