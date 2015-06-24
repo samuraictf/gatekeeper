@@ -2,7 +2,6 @@
 # -- Compilers --
 CC   := clang
 CXX  := clang++
-LINK := clang
 
 # -- Output files --
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
@@ -66,6 +65,12 @@ OBJ_FILES = $(patsubst %.c, %.o, $(C_FILES)) $(patsubst %.cpp, %.o, $(CPP_FILES)
 DEPFILE = .depfile
 
 all: $(OUT)
+
+ifeq ("$(CPP_FILES)","")
+LINK:=$(CXX)
+else
+LINK:=$(CC)
+endif
 
 # Output file
 # =========================================================
