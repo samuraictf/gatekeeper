@@ -1,26 +1,26 @@
 #include <stdio.h>
 #include "proxy.h"
 
-callback_rv data_in(void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
+callback_rv data_in(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
     puts("<STDIN>");
     return CB_OKAY;
 }
 
-callback_rv data_out(void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
+callback_rv data_out(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
     puts("<STDOUT>");
     return CB_OKAY;
 }
 
-callback_rv data_out2(void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
+callback_rv data_out2(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
     puts("<MORE STDOUT>");
     return CB_OKAY;
 }
 
 
-callback_rv data_err(void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
+callback_rv data_err(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
     puts("<STDERR>");
     return CB_OKAY;

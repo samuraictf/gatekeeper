@@ -1,8 +1,11 @@
+#define _GNU_SOURCE
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
 #include <linux/sched.h>
+#include <time.h>
 
 int main(int argc, char** argv) {
     if(argc < 3) {
@@ -11,7 +14,7 @@ int main(int argc, char** argv) {
     }
     char *filename;
     char *ld_preload = "libSegFault.so";
-    asprintf(&filename, "%s/segfault-%s-%i", getenv("TMPDIR"), argv[1], time(0));
+    asprintf(&filename, "%s/segfault-%s-%lu", getenv("TMPDIR"), argv[1], (unsigned long) time(0));
 
     if(getenv("LD_PRELOAD")) {
         asprintf(&ld_preload, "%s:%s", "libSegFault.so", getenv("LD_PRELOAD"));

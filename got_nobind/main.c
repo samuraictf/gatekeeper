@@ -4,6 +4,8 @@
 #include <sched.h>
 #include <linux/sched.h>
 
+#include "nobind.h"
+
 int main(int argc, char** argv) {
     if(argc < 2) {
         printf("Usage: %s <dir> argv0 argv1\n", argv[0]);

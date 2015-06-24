@@ -139,8 +139,6 @@ initialize_packet
 void
 get_local_remote_info
 (
-    proxied_socket  *in,
-    proxied_socket  *out
 );
 
 
@@ -221,7 +219,7 @@ main
 
 
     // Save off information about the std_in socket
-    get_local_remote_info(&std_out, &std_in);
+    get_local_remote_info();
 
     // Set up environment variables so that they're available from the child process.
     setup_environment("LOCAL", &std_out);

@@ -188,7 +188,8 @@ READLOOP:;
                 registered_callback* p_callback = callbacks[i];
 
                 while(p_callback && p_callback->function) {
-                    callback_rv rv = p_callback->function(p_callback->ctx,
+                    callback_rv rv = p_callback->function(i,
+                                                         p_callback->ctx,
                                                          &buffer,
                                                          &buffer_used,
                                                          &buffer_allocated);
