@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 int main() {
     void * ptr = main;
     write(1, &ptr, sizeof(ptr));
