@@ -39,3 +39,6 @@ gatekeeper.so
 .depfile
 
 npm-debug.log
+.gdb_history
+*.pcap
+*.xml
