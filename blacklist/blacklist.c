@@ -115,7 +115,9 @@ void blacklist_range(char* start, char* stop)
 int blacklist_check_stdio() {
     for(int fd = STDOUT_FILENO; fd <= STDERR_FILENO; fd++) {
         socklen_t len = sizeof(struct sockaddr);
-        struct sockaddr addr = {0};
+        struct sockaddr addr;
+
+        memset(&addr, 0, sizeof(addr));
 
         if(0 != getpeername(fd, &addr, &len)) {
             if(errno != ENOTSOCK) {
@@ -124,7 +126,7 @@ int blacklist_check_stdio() {
             continue;
         }
 
-        for(int bl = 0; bl < blacklisted_range_count; bl++) {
+        for(size_t bl = 0; bl < blacklisted_range_count; bl++) {
             if(check_range(blacklisted_ranges[bl], &addr)) {
                 return 1;
             }
