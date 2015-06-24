@@ -12,9 +12,7 @@ def doit(p):
     d = DynELF(leak, addr)
     log.info("system: %#x" % (d.lookup('system', 'libc.so') or 0))
 
-#########################################################
-
 doit(process("./demo", stderr=2))
-
+print '#########################################################'
 os.environ['LD_PRELOAD'] = os.path.join('.','..','ldfuck.so')
 doit(process("./demo", stderr=2))
