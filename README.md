@@ -32,8 +32,13 @@ Here's a short descrption of each module.  To build a module, just run `make` in
 - [`openfile`](openfile/README.md) - Opens a specific file on a specific file descriptor.
 - [`pcap`](pcap/README.md) - Captures all stdin/stdout/stderr to a pcap file, with accurate address information gathered from `getpeername`.
 - [`preload`](preload/README.md) - A collection of `LD_PRELOAD` modules.
+- [`preload/devctf`](preload/devctf/README.md) - Hooks calls to `open` to catch `open("/dev/ctf",...)` and returns a pre-determined file descriptor.  This allows access to `/dev/ctf` from within a chroot.
+- [`preload/ldfuck`](preload/ldfuck/README.md) - Fucks with internal linker structures which are used to leak function addresses over-the-wire.
+- [`preload/noexecve`](preload/noexecve/README.md) - Hooks all `exec*` and related (`system`, `popen`) function calls via the PLT.  Also disables `execve` via seccomp-bpf.
+- [`preload/onepath`](preload/onepath/README.md) - Allows `execve` calls, but checks `/proc/self/exe` in the new process to see if it is a specific, permitted path.
 - [`proxy`](proxy/README.md) - Communications forwarding template and hook library.  Ideally suited to only performing a single copy of stdin/stdout/stderr instead of multiple copies between various consumers.
 - [`randenv`](randenv/README.md) - Adds a random-length environment variable to the environment, which should modify offsets on the stack.
+- [`regex`](regex/README.md) - I/O filtering based on regular expressions
 - [`rlimit_cpu`](rlimit_cpu/README.md) - Adds CPU time limits to all subprocesses
 - [`rlimit_fsize`](rlimit_fsize/README.md) - Adds limits on the size of file which may be created
 - [`rlimit_nproc`](rlimit_nproc/README.md) - Effectively prevents child processes from `fork`ing.
@@ -47,6 +52,5 @@ Here's a short descrption of each module.  To build a module, just run `make` in
 
 These modules do not work yet.
 
-- [`regex`](regex/README.md) - I/O filtering based on regular expressions
 - [`stderr`](stderr/README.md) - Logs all output of `stderr` to a file.
 - [`breakpad`](breakpad/README.md) - Loads breakpad (crash reporting) into the child process.
