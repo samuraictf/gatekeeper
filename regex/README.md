@@ -2,6 +2,8 @@
 
 Filtering input and output with Perl Compatible Regular Expressions.
 
+Expressions are loaded from file, with one expression per line.
+
 ## example
 
 The included sample program filters on stdout.
