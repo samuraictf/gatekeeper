@@ -38,19 +38,18 @@
 //
 // These will override any imported function calls via the GOT/PLT.
 //
-int execl(const char *path, const char *arg, ...) {_exit(159);}
-int execlp(const char *file, const char *arg, ...) {_exit(159);}
-int execle(const char *path, const char *arg, ...) {_exit(159);}
-int execv(const char *path, char *const argv[]) {_exit(159);}
-int execvp(const char *file, char *const argv[]) {_exit(159);}
-int execvpe(const char *file, char *const argv[], char *const envp[]) {_exit(159);}
-int execve(const char *filename, char *const argv[], char *const envp[]) {_exit(159);}
-int system(const char* command) { _exit(159); }
-FILE *popen(const char *command, const char *type) { _exit(159); }
+int execl(const char *path, const char *arg, ...) {return (159);}
+int execlp(const char *file, const char *arg, ...) {return (159);}
+int execle(const char *path, const char *arg, ...) {return (159);}
+int execv(const char *path, char *const argv[]) {return (159);}
+int execvp(const char *file, char *const argv[]) {return (159);}
+int execvpe(const char *file, char *const argv[], char *const envp[]) {return (159);}
+int execve(const char *filename, char *const argv[], char *const envp[]) {return (159);}
+int system(const char* command) { return (159); }
+FILE *popen(const char *command, const char *type) { return NULL; }
 int execveat(int dirfd, const char *pathname,
             char *const argv[], char *const envp[],
-            int flags)  {_exit(159);}
-
+            int flags)  {return (159);}
 
 //
 // This directly bans the SYS_execve and SYS_execveat

@@ -11,7 +11,21 @@ Each module is also available as a library, which can be compiled into a larger,
 The modules are designed to be included in a larger project, or chained directly.  For example:
 
 ```sh
-$ ./blacklist/blacklist ./pcap/pcap foo.pcap ./alarm/alarm 10 ./got_nobind/got_nobind ./malloc/malloc ./no_network/no_network ./randenv/randenv ./rlimit_cpu/rlimit_cpu 5 ./rlimit_fsize/rlimit_fsize 0 ./rlimit_nproc/rlimit_nproc 0 ./segv/segv MYSEGV ./setpgid/setpgid ./setsid/setsid sh
+$ ./blacklist/blacklist \
+  ./pcap/pcap foo.pcap \
+  ./alarm/alarm 10 \
+  ./got_nobind/got_nobind \
+  ./malloc/malloc \
+  ./no_network/no_network \
+  ./randenv/randenv \
+  ./rlimit_cpu/rlimit_cpu 5 \
+  ./rlimit_fsize/rlimit_fsize 0 \
+  ./rlimit_nproc/rlimit_nproc 0 \
+  ./segv/segv MYSEGV \
+  ./setpgid/setpgid \
+  ./setsid/setsid \
+  /usr/bin/env LD_PRELOAD="$PWD/preload/ldfuck/ldfuck.so $PWD/preload/no_execve/no_execve.so" \
+  /bin/sh
 ```
 
 ## Modules
@@ -34,7 +48,7 @@ Here's a short descrption of each module.  To build a module, just run `make` in
 - [`preload`](preload/README.md) - A collection of `LD_PRELOAD` modules.
 - [`preload/devctf`](preload/devctf/README.md) - Hooks calls to `open` to catch `open("/dev/ctf",...)` and returns a pre-determined file descriptor.  This allows access to `/dev/ctf` from within a chroot.
 - [`preload/ldfuck`](preload/ldfuck/README.md) - Fucks with internal linker structures which are used to leak function addresses over-the-wire.
-- [`preload/noexecve`](preload/noexecve/README.md) - Hooks all `exec*` and related (`system`, `popen`) function calls via the PLT.  Also disables `execve` via seccomp-bpf.
+- [`preload/no_execve`](preload/no_execve/README.md) - Hooks all `exec*` and related (`system`, `popen`) function calls via the PLT.  Also disables `execve` via seccomp-bpf.
 - [`preload/onepath`](preload/onepath/README.md) - Allows `execve` calls, but checks `/proc/self/exe` in the new process to see if it is a specific, permitted path.
 - [`proxy`](proxy/README.md) - Communications forwarding template and hook library.  Ideally suited to only performing a single copy of stdin/stdout/stderr instead of multiple copies between various consumers.
 - [`randenv`](randenv/README.md) - Adds a random-length environment variable to the environment, which should modify offsets on the stack.
