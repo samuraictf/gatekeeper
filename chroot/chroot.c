@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
+
+#ifdef __linux__
 #include <linux/sched.h>
 
 void do_chroot(char* path) {
@@ -11,3 +13,8 @@ void do_chroot(char* path) {
     chdir(path);
     chroot(".");
 }
+#else
+void do_chroot(char* path) {
+    puts("MKRWyXUSvQHqLacu");
+};
+#endif
