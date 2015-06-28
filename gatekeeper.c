@@ -15,15 +15,16 @@ void usage(void)
     printf("      -l <listen string> GK_LISTENSTR\n");
     printf("      -r <redirect string> GK_REDIRECTSTR\n");
     printf("      -o <optional log server string> GK_LOGSRV\n");
-    printf("      -c <optional capture host string> GK_CAPHOST\n");
     printf("      -a <optional alarm in seconds> GK_ALARM\n");
+    printf("      -d optional flag to limit disk access with RLIMIT_FSIZE 0 and ulimit 0777 GK_RLIMIT\n");
+    printf("      -f optional flag to randomize file descriptors by opening /dev/urandom several times GK_RANDFD\n");
+    printf("      -e optional flag randomize child environment GK_RANDENV\n");
     printf("      -t <optional chroot to this directory> GK_CHROOT\n");
-    printf("      -e <optional randomize child environment> GK_RANDENV\n");
-    printf("      -d optional limit disk access with RLIMIT_FSIZE 0 and ulimit 0 GK_RLIMIT\n");
+    printf("      -k <optional filename to leak open fd on 1337 to forked child process> GK_LEAK_FD\n");
+    printf("      -c <optional capture host string> GK_CAPHOST\n");
     printf("      -D optional output extra debugging information\n");
     printf("         (WARNING: using -D without -o will send debugging info to stderr.  NEVER\n");
     printf("         do this in a live environment) GK_DEBUG\n");
-    printf("      -f optional randomize file descriptors by opening /dev/urandom several times GK_RANDFD\n");
     printf("      -I <optional path to text file of regexs to match INPUT traffic against> GK_INPUT_REGEXFILE\n");
     printf("      -O <optional path to text file of regexs to match OUTPUT traffic against> GK_OUTPUT_REGEXFILE\n");
     printf("      -b <optional path to text file of IP's to blacklist> GK_BLACKLIST_IP\n");
@@ -43,7 +44,6 @@ void usage(void)
  * Specifying a log server is necessary for programs listening on stdio.
  * Specifying a capture host will send a copy of all traffic sent or received to the capture server.
  * Specifying an alarm value will set and alarm for that number of seconds
- * Specifying a key file will setup inotify monitoring on that key file.
  *
  */
 
@@ -62,6 +62,7 @@ int main(int argc, char * argv[])
     char * regex_input_fname    = NULL;
     char * regex_output_fname   = NULL;
     char * blacklist_ip_fname   = NULL;
+    char * leak_fd_fname        = NULL;
     int c                       = -1;
     int f                       = -1;
     int randenv                 = 0;
@@ -75,6 +76,7 @@ int main(int argc, char * argv[])
     int remote_fd_r             = -1;
     int remote_fd_w             = -1;
     int highest_fd              = -1;
+    int leak_fd                 = -1;
     ringbuffer_t * in_ringbuf   = NULL;
     ringbuffer_t * out_ringbuf  = NULL;
     pcre_list_t * in_pcre_list  = NULL;
@@ -104,6 +106,7 @@ int main(int argc, char * argv[])
     regex_input_fname   = getenv("GK_INPUT_REGEXFILE");
     regex_output_fname  = getenv("GK_OUTPUT_REGEXFILE");
     blacklist_ip_fname  = getenv("GK_BLACKLIST_IP");
+    leak_fd_fname       = getenv("GK_LEAK_FD");
 
     /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr
      * unless we have at least listenstr and redirectstr from env
@@ -157,7 +160,7 @@ int main(int argc, char * argv[])
     }
 
     /* cmdline parse, environment configurations take precident */
-    while ((c = getopt(argc, argv, "hDtI:O:l:r:k:o:c:a:dfeb:s:")) != -1) {
+    while ((c = getopt(argc, argv, "hDt:I:O:l:r:k:o:c:a:dfeb:s:")) != -1) {
         switch (c) {
         case 'h':
             /* help and exit*/
@@ -241,6 +244,12 @@ int main(int argc, char * argv[])
                 blacklist_ip_fname = optarg;
             }
             break;
+        case 'k':
+            /* filename for fd leak */
+            if (leak_fd_fname == NULL) {
+                leak_fd_fname = optarg;
+            }
+            break;
         case 's':
         {
             double cutoff = atof(optarg);
@@ -313,7 +322,7 @@ int main(int argc, char * argv[])
     /* open many file descriptors to "randomize" the real i/o fd's used by
        forked children */
     if (randfd == 1) {
-        for (i = 0; i < (unsigned int) ((rand() % 500) + 20); i++) {
+        for (i = 0; i < (unsigned int) ((rand() % 500) + 256); i++) {
             open("/dev/urandom", O_RDONLY, NULL);
         }
     }
@@ -322,16 +331,23 @@ int main(int argc, char * argv[])
        umask will render files unusable without a chmod first */
     if (rlimit == 1) {
         Log("Setting RLIMIT_FSIZE\n");
-        umask(0);
+        umask(0777);
         setrlimit(RLIMIT_FSIZE, &rl);
     }
 
     /* chroot! */
     if (chrootstr != NULL) {
+        Log("Setting chroot\n");
         unshare(CLONE_NEWUSER);
         chroot(chrootstr);
+        chdir(chrootstr);
     }
 
+    if (leak_fd_fname != NULL) {
+        leak_fd = open(leak_fd_fname, O_RDONLY, NULL);
+        dup2(leak_fd, 1337);
+        close(leak_fd);
+    }
     /* setup local listener fd's, will block to accept connections */
     if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE) {
         goto cleanup;
@@ -589,22 +605,19 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
 
                 if (local == REMOTE_RAND_ENV) {
                     envp = build_rand_envp();
-                    /*argv = getenv("GATEKEEPER_EXEC_ARGS");
-                    execve()*/
-                } else {
-                    /* exec program using environment of parent for now. */
-                    if (debugging) {
-                        Log("executing ");
-                        for (i = 0; i <= arg_count; i++) {
-                            Log("%s ", argv[i]);
-                        }
-                        Log("\n");
+                } 
+                /* exec program using environment of parent for now. */
+                if (debugging) {
+                    Log("executing ");
+                    for (i = 0; i <= arg_count; i++) {
+                        Log("%s ", argv[i]);
                     }
-                    execve(argv[0], argv, environ);
-                    /* should never get here */
-                    Log("execve() of %s failed: %s\n", argv[0], strerror(errno));
-                    return FAILURE;
+                    Log("\n");
                 }
+                execve(argv[0], argv, envp);
+                /* should never get here */
+                Log("execve() of %s failed: %s\n", argv[0], strerror(errno));
+                return FAILURE;
             }
             /* parent process */
 

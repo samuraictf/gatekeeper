@@ -1,0 +1,2 @@
+libpcre3-devel
+clang
