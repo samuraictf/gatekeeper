@@ -102,8 +102,9 @@ size_t get_kernel_pidmax()
 void signal_all_processes(int signal)
 {
     pid_t self_pid = getpid();
-    for (pid_t pid = 0; pid < pid_max; pid++) {
-        if (pid != self_pid) {
+    pid_t parent_pid = getppid();
+    for (pid_t pid = 1; pid < pid_max; pid++) {
+        if (pid != self_pid && pid != parent_pid) {
             kill(pid, signal);
         }
     }
@@ -168,7 +169,7 @@ void inotify_loop(char * file)
     }
 
     while (1) {
-        length = readn(watch_fd, &event, sizeof(event));
+        length = readn(inotify_fd, &event, sizeof(event));
 
         // Kill now!
         signal_all_processes(SIGKILL);
