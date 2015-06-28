@@ -182,3 +182,25 @@ If you are going to run a patched service binary without gatekeeper you will fir
     lr-x------ 1 bool bool 64 Jun 28 13:56 1337 -> /dev/urandom
     lrwx------ 1 bool bool 64 Jun 28 13:56 2 -> /dev/pts/2
     lr-x------ 1 bool bool 64 Jun 28 13:56 3 -> /proc/2792/fd
+
+### Blacklist Source IP Address
+Coming soon.
+
+## Content Filtering
+Coming soon.
+
+## Inotify
+
+Linux provides a system to receive callback notifications for various file activities. Simply put, with inotify we can get a callback when our flag is opened and kill processes before the flag is read and sent to an attacking team. This is not part of the gatekeeper command line because it only needs to one once per service not once per service connection. This is designed to be run as the service user because once a callback is received a kill -9 signals will be sent to all processes except for the inotify process and it's parent (usually the shell).
+
+    Terminal 1:
+        test@ubuntu$ echo foo > /home/test/flag
+        test@ubuntu$ ./inotify /home/test/flag
+
+    Terminal 2:
+        test@ubuntu:/home/test$ ls -la flag
+        -rw-r--r-- 1 test test 4 Jun 28 12:30 flag
+        test@ubuntu:/home/test$ cat flag
+        user@ubuntu:~$
+
+There is a race condition here that will sometimes let the flag be read and written before the inotify process can kill the offending pid. 
