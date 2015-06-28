@@ -9,6 +9,10 @@
 
 #include "blacklist.h"
 
+#ifdef __APPLE__
+#define s6_addr32 __u6_addr.__u6_addr32
+#endif
+
 struct range {
     int af;
     char* start_str;
