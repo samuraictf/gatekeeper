@@ -1,3 +1,2 @@
 LDFLAGS += -lpcap
-
-include ../makefiles/exe
+include Makefile.exe
