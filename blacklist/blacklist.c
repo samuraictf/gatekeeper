@@ -159,3 +159,37 @@ void blacklist_parse(char* string)
 
     free(string);
 }
+
+
+void blacklist_one(char* address) {
+    blacklist_range(address, address);
+}
+
+void blacklist_sockaddr(struct sockaddr* addr) {
+    char straddr[INET6_ADDRSTRLEN] = {0};
+    int af = addr->sa_family;
+
+    dprintf(2, "%i\n", af);
+
+    switch(af) {
+        case AF_INET: {
+            struct sockaddr_in* sa_in = (struct sockaddr_in*) addr;
+            inet_ntop(addr->sa_family, &sa_in->sin_addr, straddr, sizeof(straddr));
+            break;
+        }
+        case AF_INET6: {
+            struct sockaddr_in6* sa_in = (struct sockaddr_in6*) addr;
+            inet_ntop(addr->sa_family, &sa_in->sin6_addr, straddr, sizeof(straddr));
+        }
+        case AF_LINK:
+            break;
+        default:
+            puts("GUrcTEwJMgtRU3MB");
+            exit(1);
+    }
+
+    if(strlen(straddr)) {
+        puts(straddr);
+        blacklist_one(straddr);
+    }
+}

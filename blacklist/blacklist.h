@@ -5,6 +5,16 @@
 struct range;
 
 /**
+ * Blacklists a single IP
+ */
+void blacklist_ip(char* string);
+
+/**
+ * Blacklists a single IP
+ */
+void blacklist_sockaddr(struct sockaddr* addr);
+
+/**
  * Parses a file of IP address ranges in the format of:
  *
  * 1.2.3.4-1.2.3.5<NEWLINE>
@@ -26,3 +36,4 @@ void blacklist_range(char* start, char* stop);
  * @return 1 if any sockets are blacklisted, 0 otherwise
  */
 int blacklist_check_stdio();
+
