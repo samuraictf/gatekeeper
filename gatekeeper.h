@@ -1,6 +1,7 @@
 #ifndef _GATEKEEPER_H
 #define _GATEKEEPER_H
-#define _GNU_SOURCE
+#define _GNU_SOURCE 
+#define __USE_GNU   1
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -20,13 +21,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include "seccomp-bpf.h"
+#include "regs.h"
+#include <sys/types.h>          /* See NOTES */
+#include <sys/socket.h>
 
 #include "ringbuffer.h"
 #include "ctf.h"
@@ -40,6 +46,13 @@
 #define REMOTE_RAND_ENV 2
 #define RECVBUF_SIZE 4096
 
+
+#define _SYSCALL_H
+#undef __ASSEMBLER__
+
+#ifndef SYS_socketcall_socket
+#define SYS_socketcall_socket 1
+#endif
 
 /* typedefs / structs */
 typedef struct pcre_list pcre_list_t;
@@ -84,6 +97,7 @@ int connect_ipv4(int type, unsigned short port, struct in_addr * ia4);
 int connect_ipv6(int type, unsigned short port, struct in6_addr * ia6);
 int accept_tcp_connection(int server_fd, int address_family);
 int accept_udp_connection(int client_fd, int address_family);
+int disallow_socketcall(void);
 
 int list_add(pcre *re, pcre_list_t **head);
 void free_list(pcre_list_t *list);

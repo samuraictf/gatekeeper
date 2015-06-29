@@ -5,11 +5,12 @@ Gatekeeper is C program that will do network redirection, filtering, and sandbox
 ## Redirection
 
 Here is a simple example running bash:
+
     $ ./gatekeeper -l stdio -r stdio:/bin/bash
     echo test
     test
 
-In this example the -l argument specifies where gatekeeper will listen and the -r argument specifies where gatekeeper will redirect. We are using stdio for both listen and redirect arguments here just like we would with an xinetd service. The redirect argument requires a process to exec in the stdio case. In Defcon CTF this would be the renamed service binary. We can also make gatekeeper listend :
+In this example the -l argument specifies where gatekeeper will listen and the -r argument specifies where gatekeeper will redirect. We are using stdio for both listen and redirect arguments here just like we would with an xinetd service. The redirect argument requires a process to exec in the stdio case. In Defcon CTF this would be the renamed service binary. We can also make gatekeeper listen:
 
     $ ./gatekeeper -l tcpipv4:1234 -r stdio:/bin/bash &
     TCP 0.0.0.0:1234
@@ -27,7 +28,7 @@ Here we've opened up a new tcp port on 1234 locally and redirected to /bin/bash.
     hello
     hello
 
-In this example we started a netcat listener on port 1236 then started gatekeeper to listen on tcp port 1234 and redirect to tcpport 1236 on localhost. Gatekeeper logged the socket open and connection with TCP:xxx messages after we connected to port 1234 with netcat. Then we typed hello and the background netcat process on port 1236 output hello.
+In this example we started a netcat listener on port 1236 then started gatekeeper to listen on tcp port 1234 and redirect to tcp port 1236 on localhost. Gatekeeper logged the socket open and connection with TCP:xxx messages after we connected to port 1234 with netcat. Then we typed hello and the background netcat process on port 1236 output hello.
 
 Now you have a basic sense of the redirection capabilities of gatekeeper. These can be mixed and matched much like you could do with socat. When used in stdio mode or with an xinetd service the logging can create a bit of an issue because our stdio fd's are all redirected to a networt sockets. To solve this gatekeeper can emit log messages to an external server. For example:
 
@@ -39,6 +40,7 @@ Now you have a basic sense of the redirection capabilities of gatekeeper. These 
 Here we started a netcat listener on udp port 2090 and then attempted to start gatekeeper listening on tcpipv4 port 1234 redirecting to /bin/bash just like in our first example. Only this time there was a problem. Gatekeeper couldn't bind to port 1234. Something was already listening there. Indeed the process from our previous example was not killed and the new gatekeeper process was unable to bind to port 1234. This remote logging feature is useful for tracking errors and other connection information on a live system. 
 
 These parameters can be configured via environment variables as well:
+
     GK_LISTENSTR=tcpipv4:1234 GK_REDIRECTSTR=stdio:/bin/bash GK_LOGSRV=127.0.0.1:2090 ./gatekeeper
 
 ## Local Defenses
@@ -52,6 +54,7 @@ Let's talk about some of the sandboxing capabilities. The most basic capability 
     test
     (3 seconds pass)
     Alarm clock
+    $
 
 ### Rlimit
 
@@ -89,12 +92,11 @@ Sometimes shellcode will make assumptions about which file descriptor will be as
 Exploits sometimes require known or fixed offsets to stack addresses. For exploits making assumptions about stack offsets we can help vary those offsets by adding garbage variables to the forked child's environment. 
 
 Example: 
+
     $ ./gatekeeper -l stdio -r stdio:/bin/bash -e
     env
     JpInn0HjfAthFNCj2vZPfZl2Zqb0m39tuMD0bEhxZGklX3bEqkAmNDFGMY3leHvtjtkbmabiJ4RWGtu5TgsYVh3xqTto6i4mLOXpf61wd7cF41A1p0o3HyoBl0VT6HeRgdNpMzPydtxnpEK7YZ9OprAVrgvdKCOPLJbc6vEMOkJuqh9eMoF7zLgoekvIV7lGOfNuenHJw8P1Ud4MINmif2GNCcZqkGx5bYDPFJgejH2gc18jgYM8p0f39YaRFREzPQ766Q9cyVInHUg6pmxbbHcA7URBPX7J9J=t5IbdMEWJpYMVnTkmzrcxpUVrGCc9FoYzJu4fckYunRRQnG91nRsZASigGmkT6OlH6Rriq2bzJFjJhhYwF1Wir5hxHRVeM5OBpJkx478aAmVBUPJdpEMu6Rl2UJa4BnFnx9k1qzjlYGmPzdjAebqlECnbo4BmYWcyr46wjte8wD8gXusaZkPVzvuRe4AEWvXCZUeL83qBbMsq0htDqVMHFqGbAsgpCcM2nl0W2PuzxICybQD8fdps73JsKoP19CcsViErIfxCukCZv8dEsZzrx1PFlA83Xwg1p3ZSLnyDZtKSdCduWYpQBdgXtOLs
     GsWDZwus87ykIj5ECxtdAZcnD5Q2PG8C0ixltV8raDtYz6YeTk0mpMhEAfimKevCVtI6J3KWeGHxO9VqkAoxaWcNleFa9SHIkz5awsBkhEZMTEi=HUeZtgD7RbDEUzPX9gH0SplIvxgD7QZhjfhypi
-
-
 
 ### Chroot
 
@@ -136,6 +138,7 @@ The for loop parses the output of ldd of /bin/bash and /bin/ls, extracts the fil
 #### Detection
 
 One way you can detect this kind of chroot is to look at inodes and uid's of files:
+
     $ ./gatekeeper -l stdio -r stdio:/bin/bash -t ./chroot -o 127.0.0.1:2090
     ls -lai
     total 20

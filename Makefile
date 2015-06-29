@@ -20,23 +20,24 @@ ifdef DEBUG
 	CFLAGS		+= -g -O0 -DDEBUG=1
 	LDFLAGS		+= -g -O0 -DDEBUG=1
 endif
-CFLAGS      += 	-fstack-protector-all \
+CFLAGS      +=  -fstack-protector-all \
 				-Wformat \
 				-Wformat=2 \
 				-Wformat-security \
 				-fPIE -fPIC \
 				-D_FORTIFY_SOURCE=2 \
-				-pedantic-errors \
 				-Wall -Wextra \
 				-Wpointer-arith \
-				-Wmissing-noreturn \
 				-Wmissing-format-attribute \
-				-Wredundant-decls \
 				-Wunreachable-code \
 				-Winline \
 				-Wfloat-equal \
+				-Werror \
 				-Wno-unused-parameter \
-				-Werror 
+				-Wno-missing-braces \
+				-Wno-missing-field-initializers \
+				-Wno-unused-function \
+				-Wno-unused-variable
 LDFLAGS     += -Wl,-z,now -Wl,-z,relro -Wl,-z,noexecstack
 
 # -- Input Files --

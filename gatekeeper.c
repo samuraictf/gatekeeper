@@ -23,6 +23,7 @@ void usage(void)
     printf("      -k <optional filename to leak open fd on 1337 to forked child process> GK_LEAK_FD\n");
     printf("      -c <optional capture host string> GK_CAPHOST\n");
     printf("      -D optional output extra debugging information\n");
+    printf("      -n optional flag to block socket calles with seccomp\n");
     printf("         (WARNING: using -D without -o will send debugging info to stderr.  NEVER\n");
     printf("         do this in a live environment) GK_DEBUG\n");
     printf("      -I <optional path to text file of regexs to match INPUT traffic against> GK_INPUT_REGEXFILE\n");
@@ -63,11 +64,13 @@ int main(int argc, char * argv[])
     char * regex_output_fname   = NULL;
     char * blacklist_ip_fname   = NULL;
     char * leak_fd_fname        = NULL;
+    char * blocksockstr         = NULL;
     int c                       = -1;
     int f                       = -1;
     int randenv                 = 0;
     int randfd                  = 0;
     int rlimit                  = 0;
+    int blocksock               = 0;
     unsigned int i              = 0;
     unsigned int alarmval       = 0;
     unsigned int seed           = 0;
@@ -103,6 +106,7 @@ int main(int argc, char * argv[])
     rlimitstr           = getenv("GK_RLIMIT");
     debugstr            = getenv("GK_DEBUG");
     randfdstr           = getenv("GK_RANDFD");
+    blocksockstr        = getenv("GK_BLOCKSOCK");
     regex_input_fname   = getenv("GK_INPUT_REGEXFILE");
     regex_output_fname  = getenv("GK_OUTPUT_REGEXFILE");
     blacklist_ip_fname  = getenv("GK_BLACKLIST_IP");
@@ -159,8 +163,11 @@ int main(int argc, char * argv[])
         rlimit = 1;
     }
 
+    if (blocksockstr != NULL) {
+        blocksock = 1;
+    }
     /* cmdline parse, environment configurations take precident */
-    while ((c = getopt(argc, argv, "hDt:I:O:l:r:k:o:c:a:dfeb:s:")) != -1) {
+    while ((c = getopt(argc, argv, "hDt:I:O:l:r:k:o:c:a:dfeb:s:n")) != -1) {
         switch (c) {
         case 'h':
             /* help and exit*/
@@ -248,6 +255,11 @@ int main(int argc, char * argv[])
             /* filename for fd leak */
             if (leak_fd_fname == NULL) {
                 leak_fd_fname = optarg;
+            }
+            break;
+        case 'n':
+            if (blocksockstr == NULL) {
+                blocksock = 1;
             }
             break;
         case 's':
@@ -353,11 +365,17 @@ int main(int argc, char * argv[])
         goto cleanup;
     }
 
+    /* block socket calls, needs to happen before exec, won't work with remote connections */
+    if (blocksock != 0) {
+        disallow_socketcall();
+    }
+    
     /* setup remote fd's */
     if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, randenv ? REMOTE_RAND_ENV : REMOTE) == FAILURE) {
         goto cleanup;
     }
 
+    
     /* set alarm if one was specified, must be after connection establised to be in
        correct fork-ed process */
     if (alarmval != 0) {
