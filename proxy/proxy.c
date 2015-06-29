@@ -6,7 +6,6 @@
 
 #include <unistd.h>
 #include <fcntl.h>
-#include <pcre.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -15,7 +14,9 @@
 #include <poll.h>
 #include <signal.h>
 #include <sys/wait.h>
+
 #include "proxy.h"
+#include "pipe2.h"
 
 static int max(int a, int b) { return a>b?a:b; }
 
