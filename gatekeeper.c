@@ -360,12 +360,6 @@ int main(int argc, char * argv[])
         setrlimit(RLIMIT_FSIZE, &rl);
     }
 
-    /* chroot! */
-    if (chrootstr != NULL) {
-        unshare(CLONE_NEWUSER);
-        chroot(chrootstr);
-        chdir(chrootstr);
-    }
 
     if (leak_fd_fname != NULL) {
         leak_fd = open(leak_fd_fname, O_RDONLY, NULL);
@@ -375,6 +369,13 @@ int main(int argc, char * argv[])
 
     if (blacklist_ip_fname != NULL) {
         parse_blacklist_file(blacklist_ip_fname);
+    }
+
+    /* chroot! */
+    if (chrootstr != NULL) {
+        unshare(CLONE_NEWUSER);
+        chroot(chrootstr);
+        chdir(chrootstr);
     }
 
     /* setup local listener fd's, will block to accept connections */
@@ -388,7 +389,7 @@ int main(int argc, char * argv[])
     }
     
     if(blacklist_ip_fname != NULL) {
-        if (blacklist_check_stdio() == 1) {
+        if (blacklist_check_fd(listen_fd_r) == 1) {
             socklen_t len = sizeof(struct sockaddr);
             struct sockaddr addr;
             memset(&addr, 0, sizeof(addr));
