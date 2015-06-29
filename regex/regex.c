@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
-#include <linux/sched.h>
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -129,7 +129,9 @@ pcre* load_expressions(char* filename) {
     if(!strlen(full_expr))
         return NULL;
 
+#ifdef DEBUG
     puts(full_expr);
+#endif
 
     return pcre_compile_errmsg(full_expr);
 }
