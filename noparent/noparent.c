@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sched.h>
 #include <signal.h>
-#include <linux/sched.h>
+
 #include <sys/types.h>
 #include <sys/wait.h>
 

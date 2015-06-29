@@ -1,8 +1,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sched.h>
-#include <linux/sched.h>
 
 #include "bind_now.h"
 

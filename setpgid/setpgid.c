@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
-#include <linux/sched.h>
+
 
 int main(int argc, char** argv) {
     if(argc < 2) {

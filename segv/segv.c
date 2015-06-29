@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
-#include <linux/sched.h>
+
 #include <time.h>
 
 int main(int argc, char** argv) {
