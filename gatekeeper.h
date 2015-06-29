@@ -29,11 +29,12 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
-#include "seccomp-bpf.h"
-#include "regs.h"
 #include <sys/types.h>          /* See NOTES */
 #include <sys/socket.h>
 
+#include "seccomp-bpf.h"
+#include "regs.h"
+#include "blacklist.h"
 #include "ringbuffer.h"
 #include "ctf.h"
 #include "skynet.h"
@@ -99,7 +100,7 @@ int accept_tcp_connection(int server_fd, int address_family);
 int accept_udp_connection(int client_fd, int address_family);
 int disallow_socketcall(void);
 
-int list_add(pcre *re, pcre_list_t **head);
+int pcre_list_add(pcre *re, pcre_list_t **head);
 void free_list(pcre_list_t *list);
 pcre_list_t *parse_pcre_inputs(const char *fname);
 int check_for_match(pcre_list_t *, char *buf, int num_bytes);

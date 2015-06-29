@@ -30,7 +30,7 @@ Here we've opened up a new tcp port on 1234 locally and redirected to /bin/bash.
 
 In this example we started a netcat listener on port 1236 then started gatekeeper to listen on tcp port 1234 and redirect to tcp port 1236 on localhost. Gatekeeper logged the socket open and connection with TCP:xxx messages after we connected to port 1234 with netcat. Then we typed hello and the background netcat process on port 1236 output hello.
 
-Now you have a basic sense of the redirection capabilities of gatekeeper. These can be mixed and matched much like you could do with socat. When used in stdio mode or with an xinetd service the logging can create a bit of an issue because our stdio fd's are all redirected to a networt sockets. To solve this gatekeeper can emit log messages to an external server. For example:
+Now you have a basic sense of the redirection capabilities of gatekeeper. These can be mixed and matched much like you could do with socat. When used in stdio mode or with an xinetd service the logging can create a bit of an issue because our stdio fd's are all redirected to a network sockets. To solve this gatekeeper can emit log messages to an external server. For example:
 
     $ nc -l -u 2090 &
     $ ./gatekeeper -l tcpipv4:1234 -r stdio:/bin/bash -o 127.0.0.1:2090
@@ -102,7 +102,7 @@ Example:
 
 #### Setup
 
-The next defense to cover could be considered a bit unfair. In 2013 the linux kernel introduced the ability to disassociate parts of the process execution context with an unshare() call. The capabilities unshared are inherited by forked child processes. This allows us to do things that we once would have needed root to do. The main one we have implemented into gatekeeper is the ability to chroot as a limited user. All we do is unshare(CLONE_NEWUSER); and then chroot(chrootstr); that's it. Since the service is running as limited user it is actually quite difficult to escape the chroot environment. First, lets setup our chroot for /bin/bash and /bin/ls. If our binaries are dynamically linked we will need to copy over relevant libraries:
+The next defense to cover could be considered a bit unfair. In 2013 the linux kernel introduced the ability to disassociate parts of the process execution context with an unshare() call. The capabilities unshared are inherited by forked child processes. This allows us to do things that we once would have needed root to do. The main one we have implemented into gatekeeper is the ability to chroot as a limited user. All we do is unshare(CLONE_NEWUSER); and then chroot(chrootstr); that's it. Since the service is running as limited user it is actually quite difficult to escape the chroot environment. First, let's setup our chroot for /bin/bash and /bin/ls. If our binaries are dynamically linked we will need to copy over relevant libraries:
 
     $ ldd /bin/bash
         linux-vdso.so.1 =>  (0x00007ffe0c9f0000)
@@ -125,7 +125,7 @@ The next defense to cover could be considered a bit unfair. In 2013 the linux ke
         /lib/x86_64-linux-gnu/libtinfo.so.5
     $ cp --parents /lib64/ld-linux-x86-64.so.2 .
 
-The for loop parses the output of ldd of /bin/bash and /bin/ls, extracts the filenames, and copies them into the chroot. Only execute this after you have changed directory to the chroot directory. There is one last file to setup in /lib64 the ld-linux loader. Now we run gatekeeper and wish all other teams lots of luck:
+The for loop parses the output of ldd of /bin/bash and /bin/ls, extracts the filenames, and copies them into the chroot. Only execute this after you have changed directory to the chroot directory. There is one last file to set up in /lib64 the ld-linux loader. Now we run gatekeeper and wish all other teams lots of luck:
 
     $ ./gatekeeper -l stdio -r stdio:/bin/bash -t ./chroot -o 127.0.0.1:2090
     pwd
@@ -148,9 +148,9 @@ One way you can detect this kind of chroot is to look at inodes and uid's of fil
     25559295 drwxr-x--- 3 65534 65534 4096 Jun 28 16:24 lib
     25559294 drwxr-x--- 2 65534 65534 4096 Jun 28 16:27 lib64
 
-We can see that the inode of . and .. are both 25559231 typically this is a much lower number for root direcotries. Look at ls -lai / to see yours. If we are not in a chroot . and .. will have different inode numbers for any subdirectory under /. 
+We can see that the inode of . and .. are both 25559231 typically this is a much lower number for root directories. Look at ls -lai / to see yours. If we are not in a chroot . and .. will have different inode numbers for any subdirectory under /. 
 
-The other thing we see is that the uid and gid on the directories are 65534/65534 this is a speical uid/gid called the overflow uid/gid and comes from /proc/sys/kernel/overflow{uid,gdi}. Due to the ease of detection, easy of implementation, and game breaking power of this techinque we are expecting for this strategy to either be banned outright or disabled in the game kernel. However, even a few hours of a perfect defense is very good for us. So, until that happens we need to be aware of one issue caused by this chroot. 
+The other thing we see is that the uid and gid on the directories are 65534/65534 this is a special uid/gid called the overflow uid/gid and comes from /proc/sys/kernel/overflow{uid,gdi}. Due to the ease of detection, easy of implementation, and game breaking power of this technique we are expecting for this strategy to either be banned outright or disabled in the game kernel. However, even a few hours of a perfect defense is very good for us. So, until that happens we need to be aware of one issue caused by this chroot. 
 
 #### Defcon issues
 
@@ -186,13 +186,24 @@ If you are going to run a patched service binary without gatekeeper you will fir
     lrwx------ 1 bool bool 64 Jun 28 13:56 2 -> /dev/pts/2
     lr-x------ 1 bool bool 64 Jun 28 13:56 3 -> /proc/2792/fd
 
+### Seccomp BPF socket calls
+
+One weakness with inline filtering is that should any shellcode make it through the initial filters it is trivial to open another socket with a callback. If this happens we won't have a chance to filter any of that traffic. In an effort to stop callback shellcode gatekeeper can establish a seccomp filter to block the socket system call. Simply specify a -n on the command line to use this feature. For example:
+
+    $ ./gatekeeper -l stdio -r stdio:/bin/bash -n
+    ping 8.8.8.8
+    /bin/bash: line 1: 21894 Bad system call         ping 8.8.8.8
+
+When taken to extremes this is a game breaking feature that we expect to be banned or disabled in the kernel once discovered. Because of this it is advisable not to use this or the chroot defense until later in the game when there are more exploits to protect against.
+
 ### Blacklist Source IP Address
-Coming soon.
+
+When a service is launched through xinetd its' stdin, stdout, and stderr are mapped to a socket. We can use this to find the source ip address of the client talking to our service. Further, if we don't like this source ip address we can drop the connection before any data ever hits our service. In effect we can use this feature to blacklist / firewall ip addresses. This feature relies on the game network not double natting IP's so that we will have a reliable information on who is connected to us. This will need to be manually verified as the game starts.
 
 ## Content Filtering
 Coming soon.
 
-## Inotify
+# Inotify
 
 Linux provides a system to receive callback notifications for various file activities. Simply put, with inotify we can get a callback when our flag is opened and kill processes before the flag is read and sent to an attacking team. This is not part of the gatekeeper command line because it only needs to one once per service not once per service connection. This is designed to be run as the service user because once a callback is received a kill -9 signals will be sent to all processes except for the inotify process and it's parent (usually the shell).
 

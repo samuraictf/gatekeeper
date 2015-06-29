@@ -22,6 +22,8 @@ void usage(void)
     printf("      -t <optional chroot to this directory> GK_CHROOT\n");
     printf("      -k <optional filename to leak open fd on 1337 to forked child process> GK_LEAK_FD\n");
     printf("      -c <optional capture host string> GK_CAPHOST\n");
+    printf("      -m <optional number for action to take on pcre match>\n");
+    printf("         1: exit 2: random 3: evil\n");
     printf("      -D optional output extra debugging information\n");
     printf("      -n optional flag to block socket calles with seccomp\n");
     printf("         (WARNING: using -D without -o will send debugging info to stderr.  NEVER\n");
@@ -65,12 +67,14 @@ int main(int argc, char * argv[])
     char * blacklist_ip_fname   = NULL;
     char * leak_fd_fname        = NULL;
     char * blocksockstr         = NULL;
+    char * match_actionstr      = NULL;
     int c                       = -1;
     int f                       = -1;
     int randenv                 = 0;
     int randfd                  = 0;
     int rlimit                  = 0;
     int blocksock               = 0;
+    int match_action            = 1; // exit
     unsigned int i              = 0;
     unsigned int alarmval       = 0;
     unsigned int seed           = 0;
@@ -110,6 +114,7 @@ int main(int argc, char * argv[])
     regex_input_fname   = getenv("GK_INPUT_REGEXFILE");
     regex_output_fname  = getenv("GK_OUTPUT_REGEXFILE");
     blacklist_ip_fname  = getenv("GK_BLACKLIST_IP");
+    match_actionstr     = getenv("GK_MATCH_ACTION");
     leak_fd_fname       = getenv("GK_LEAK_FD");
 
     /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr
@@ -146,6 +151,10 @@ int main(int argc, char * argv[])
         alarmval = atoi(alarmvalstr);
     }
 
+    if (match_actionstr != NULL) {
+        match_action = atoi(match_actionstr);
+    }
+
     /* flags parse */
     if (randenvstr != NULL) {
         randenv = 1;
@@ -167,7 +176,7 @@ int main(int argc, char * argv[])
         blocksock = 1;
     }
     /* cmdline parse, environment configurations take precident */
-    while ((c = getopt(argc, argv, "hDt:I:O:l:r:k:o:c:a:dfeb:s:n")) != -1) {
+    while ((c = getopt(argc, argv, "hDt:I:O:l:r:k:o:c:a:dfeb:s:nm:")) != -1) {
         switch (c) {
         case 'h':
             /* help and exit*/
@@ -262,6 +271,11 @@ int main(int argc, char * argv[])
                 blocksock = 1;
             }
             break;
+        case 'm':
+            if (match_actionstr == NULL) {
+                match_actionstr = optarg;
+            }
+            break;
         case 's':
         {
             double cutoff = atof(optarg);
@@ -271,7 +285,7 @@ int main(int argc, char * argv[])
         case '?':
             /* help */
             usage();
-            if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt || 'I' == optopt || 'O' == optopt || 'b' == optopt)
+            if ('l' == optopt || 'r' == optopt || 'k' == optopt || 'o' == optopt || 'c' == optopt || 'a' == optopt || 'I' == optopt || 'O' == optopt || 'b' == optopt || 'm' == optopt)
                 Log("Option '-%c' requires an argument\n", optopt);
             else if (isprint(optopt))
                 Log("Unknown options '-%c'\n", optopt);
@@ -342,14 +356,12 @@ int main(int argc, char * argv[])
     /* setting RLIMIT_FSIZE to 0 will make write calls after exec fail with SIGXFSZ
        umask will render files unusable without a chmod first */
     if (rlimit == 1) {
-        Log("Setting RLIMIT_FSIZE\n");
         umask(0777);
         setrlimit(RLIMIT_FSIZE, &rl);
     }
 
     /* chroot! */
     if (chrootstr != NULL) {
-        Log("Setting chroot\n");
         unshare(CLONE_NEWUSER);
         chroot(chrootstr);
         chdir(chrootstr);
@@ -360,6 +372,11 @@ int main(int argc, char * argv[])
         dup2(leak_fd, 1337);
         close(leak_fd);
     }
+
+    if (blacklist_ip_fname != NULL) {
+        parse_blacklist_file(blacklist_ip_fname);
+    }
+
     /* setup local listener fd's, will block to accept connections */
     if (setup_connection(listenstr, &listen_fd_r, &listen_fd_w, LOCAL) == FAILURE) {
         goto cleanup;
@@ -370,11 +387,23 @@ int main(int argc, char * argv[])
         disallow_socketcall();
     }
     
+    if(blacklist_ip_fname != NULL) {
+        if (blacklist_check_stdio() == 1) {
+            socklen_t len = sizeof(struct sockaddr);
+            struct sockaddr addr;
+            memset(&addr, 0, sizeof(addr));
+            char myaddr[65];
+            memset (myaddr, 0, sizeof(myaddr));
+            getpeername(0, &addr, &len);
+            inet_ntop(addr.sa_family, &addr, myaddr, sizeof(myaddr)-1);
+            Log("Blacklist connection from: %s\n", myaddr);
+            exit(0);
+        }
+    }
     /* setup remote fd's */
     if (setup_connection(redirectstr, &remote_fd_r, &remote_fd_w, randenv ? REMOTE_RAND_ENV : REMOTE) == FAILURE) {
         goto cleanup;
     }
-
     
     /* set alarm if one was specified, must be after connection establised to be in
        correct fork-ed process */
