@@ -1,38 +1,34 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "proxy.h"
+
+void replace(char* data, size_t size, char a, char b) {
+    for(size_t i = 0; i < size; i++) {
+        if(data[i] == a)
+            data[i] = b;
+    }
+}
 
 void data_in(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
-    char* data = *ppbuf;
-    while((data = strstr(data, "aaaaa"))) {
-        memcpy(data, "AAAAA", 5);
-    }
+    replace(*ppbuf, *psize, 'A', 'a');
 }
 
 void data_out(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
-    char* data = *ppbuf;
-    while((data = strstr(data, "bbbbb"))) {
-        memcpy(data, "BBBBB", 5);
-    }
+    replace(*ppbuf, *psize, 'B', 'b');
 }
 
 void data_out2(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
-    char* data = *ppbuf;
-    while((data = strstr(data, "ccccc"))) {
-        memcpy(data, "CCCCC", 5);
-    }
+    replace(*ppbuf, *psize, 'C', 'c');
 }
 
 
 void data_err(int fd, void* ctx, void** ppbuf, size_t* psize, size_t* palloc)
 {
-    char* data = *ppbuf;
-    while((data = strstr(data, "ddddd"))) {
-        memcpy(data, "DDDDD", 5);
-    }
+    replace(*ppbuf, *psize, 'D', 'd');
 }
 
 

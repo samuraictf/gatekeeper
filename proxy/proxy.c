@@ -73,15 +73,15 @@ void proxy_fork_execvp(char** argv)
 
     signal(SIGPIPE, ignore_SIGPIPE);
 
-    pipe2(pipes, O_CLOEXEC);
+    pipe(pipes);
     std_in_read     = pipes[0];
     std_in_write    = pipes[1];
 
-    pipe2(pipes, O_CLOEXEC);
+    pipe(pipes);
     std_out_read    = pipes[0];
     std_out_write   = pipes[1];
 
-    pipe2(pipes, O_CLOEXEC);
+    pipe(pipes);
     std_err_read    = pipes[0];
     std_err_write   = pipes[1];
 
@@ -97,6 +97,14 @@ void proxy_fork_execvp(char** argv)
         if(stderr_callbacks[0].function) {
             dup2(std_err_write, STDERR_FILENO);
         }
+
+        close(std_in_read);
+        close(std_in_write);
+        close(std_out_read);
+        close(std_out_write);
+        close(std_err_read);
+        close(std_err_write);
+
         execvp(argv[0], &argv[0]);
         exit(-1);
     }
@@ -175,8 +183,6 @@ READLOOP:;
             int source = sources[i];
             int sink   = sinks[i];
             size_t bytes_read = 0;
-
-            dprintf(2, "%i->%i %i\n", source, sink, events);
 
             // Data is available.  Save the 'source' and 'sink'.
             if(events & POLLIN) {
