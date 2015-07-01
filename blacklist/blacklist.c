@@ -127,6 +127,7 @@ int blacklist_check_stdio() {
             if(errno != ENOTSOCK) {
                 puts("AzhlScV2puvUQEnT");
             }
+            puts("Not a socket");
             continue;
         }
 
