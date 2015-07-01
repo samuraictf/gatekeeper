@@ -6,7 +6,7 @@
 
 void set_malloc_flags() {
 #ifndef __APPLE__
-    setenv("MALLOC_PERTURB_", "127", 1);
+    setenv("MALLOC_PERTURB_", "85", 1);
     setenv("MALLOC_CHECK_", "2", 1);
 #else
     // setenv("DYLD_INSERT_LIBRARIES", "/usr/lib/libgmalloc.dylib", 1);
