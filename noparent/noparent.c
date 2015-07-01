@@ -15,25 +15,8 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    int first_child, second_child;
-    int fds[2];
-
-    pipe2(fds, O_CLOEXEC);
-
-    first_child = fork();
-
-    if(first_child == 0) {
-        second_child = fork();
-        if(second_child != 0) {
-            write(fds[0], &second_child, sizeof(second_child));
-            exit(0);
-        } else {
-            execvp(argv[1], &argv[1]);
-            exit(1);
-        }
+    if(!fork() && !fork()) {
+        execvp(argv[1], &argv[1]);
+        exit(1);
     }
-
-    read(fds[1], &second_child, sizeof(second_child));
-    waitpid(second_child, NULL, 0);
-    kill(second_child, SIGKILL);
 }
