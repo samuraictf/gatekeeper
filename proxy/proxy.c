@@ -16,7 +16,6 @@
 #include <sys/wait.h>
 
 #include "proxy.h"
-#include "pipe2.h"
 
 static int max(int a, int b) { return a>b?a:b; }
 
@@ -41,6 +40,26 @@ registered_callback *callbacks[] = {
 };
 
 void ignore_SIGPIPE(int dontcare) {dontcare=0;};
+
+
+// Compatibility
+#ifdef __APPLE__
+int
+pipe2
+(
+    int fd[2],
+    int flags
+)
+{
+    int rc = pipe(fd);
+    if(rc >= 0) {
+        fcntl(fd[0], F_SETFD, flags);
+        fcntl(fd[1], F_SETFD, flags);
+    }
+    return rc;
+}
+#endif
+
 
 /**
  * Fork, exec, and start pumping data.
