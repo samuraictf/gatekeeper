@@ -1,6 +1,6 @@
-all:: example
+all:: example/example
 
-example:: example/example
+example/example:: example/example.c
 	make -C example all
 
 clean::
