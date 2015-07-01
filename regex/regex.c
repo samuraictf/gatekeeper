@@ -19,7 +19,7 @@
 // One for each of stdin, stdout, stderr
 typedef struct _pcre_data {
     int fd;
-    pcre_cb cb;
+    regex_callback cb;
     pcre* expr;
     pcre_extra* extra;
     size_t used;
@@ -81,7 +81,8 @@ pcre* load_expressions(char* filename) {
     size_t n_expr = 0;
 
     char *expr = strtok(mem, "\n");
-    do {
+
+    while(expr) {
         size_t len = strlen(expr);
 
         if(expr[0] != '#' && len) {
@@ -96,7 +97,7 @@ pcre* load_expressions(char* filename) {
         }
 
         expr = strtok(NULL, "\n");
-    } while(expr);
+    };
 
     // Close the file, no longer needed
     munmap(mem, st.st_size);
@@ -136,9 +137,10 @@ pcre* load_expressions(char* filename) {
     return pcre_compile_errmsg(full_expr);
 }
 
-callback_rv
+void
 perform_pcre_filter(int fd, void* ctx, void** buf, size_t *used, size_t *allocated)
 {
+    puts("!");
     pcre_data* data = (pcre_data*) ctx;
     char* match;
 
@@ -163,7 +165,7 @@ perform_pcre_filter(int fd, void* ctx, void** buf, size_t *used, size_t *allocat
 
     if(result < 0) {
         if(result == PCRE_ERROR_NOMATCH)
-            return CB_OKAY;
+            return;
 
         puts("bnQCYrHTkZvKVZis");
         exit(1);
@@ -173,11 +175,11 @@ perform_pcre_filter(int fd, void* ctx, void** buf, size_t *used, size_t *allocat
         data->cb(data->buffer, data->used, &data->buffer[result]);
     }
 
-    return CB_OKAY;
+    return;
 }
 
 void
-filter_regex_stdio(int fd, char* file, pcre_cb cb)
+regex_filter_stdio(int fd, char* file, regex_callback cb)
 {
     const char* errmsg = 0;
 
@@ -191,8 +193,7 @@ filter_regex_stdio(int fd, char* file, pcre_cb cb)
     data->expr   = load_expressions(file);
 
     if(!data->expr) {
-        puts("jTUh2kAWoDfIaBqe");
-        exit(1);
+        return;
     }
 
     data->extra  = pcre_study(data->expr, PCRE_STUDY_JIT_COMPILE, &errmsg);
@@ -200,5 +201,5 @@ filter_regex_stdio(int fd, char* file, pcre_cb cb)
     data->used   = 0;
     data->cb     = cb;
 
-    register_io_callback(fd, perform_pcre_filter, data);
+    proxy_register_callback(fd, perform_pcre_filter, data);
 }

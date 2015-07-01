@@ -14,7 +14,7 @@
  * @param match
  * Pointer to the first byte of the match within buffer.
  */
-typedef void (*pcre_cb)(char* buffer, size_t buffer_size, char* match);
+typedef void (*regex_callback)(char* buffer, size_t buffer_size, char* match);
 
 /**
  * Performs PCRE filtering on the specified file descriptor,
@@ -33,4 +33,8 @@ typedef void (*pcre_cb)(char* buffer, size_t buffer_size, char* match);
  * Callback to invoke on a match.  May be NULL.
  */
 void
-filter_regex_stdio(int fd, char* file, pcre_cb cb);
+regex_filter_stdio(int fd, char* file, regex_callback cb);
+
+#define regex_child_pid   proxy_child_pid
+#define regex_fork_execvp proxy_fork_execvp
+#define regex_pump        proxy_pump
