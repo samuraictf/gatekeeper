@@ -21,13 +21,16 @@ static int max(int a, int b) { return a>b?a:b; }
 
 typedef struct {
     int fd;
-    callback_fn function;
+    proxy_callback_fn function;
     void *ctx;
 }  registered_callback;
 
 #define MAX_CALLBACKS 64
 
 int child_pid;
+int std_in_read, std_in_write;
+int std_out_read, std_out_write;
+int std_err_read, std_err_write;
 
 registered_callback stdin_callbacks[MAX_CALLBACKS+1] = {0};
 registered_callback stdout_callbacks[MAX_CALLBACKS+1] = {0};
@@ -53,25 +56,22 @@ pipe2
 {
     int rc = pipe(fd);
     if(rc >= 0) {
-        fcntl(fd[0], F_SETFD, flags);
-        fcntl(fd[1], F_SETFD, flags);
+        if(-1 == fcntl(fd[0], F_SETFD, flags)
+        || -1 == fcntl(fd[1], F_SETFD, flags)) {
+            puts("kEptORZH4B4ggS7l");
+            exit(1);
+        }
     }
     return rc;
 }
 #endif
 
 
-/**
- * Fork, exec, and start pumping data.
- */
-void pump_execvp(char** argv)
+void proxy_fork_execvp(char** argv)
 {
-    signal(SIGPIPE, ignore_SIGPIPE);
-
     int pipes[2];
-    int std_in_read, std_in_write;
-    int std_out_read, std_out_write;
-    int std_err_read, std_err_write;
+
+    signal(SIGPIPE, ignore_SIGPIPE);
 
     pipe2(pipes, O_CLOEXEC);
     std_in_read     = pipes[0];
@@ -109,11 +109,9 @@ void pump_execvp(char** argv)
     close(std_in_read);
     close(std_out_write);
     close(std_err_write);
+}
 
-    //
-    // The main loop
-    //
-
+void proxy_pump() {
     // These are the file descriptor source/sink pairs.
     int sources[] = { STDIN_FILENO, std_out_read, std_err_read };
     int sinks[] = { std_in_write, STDOUT_FILENO, STDERR_FILENO };
@@ -168,7 +166,6 @@ void pump_execvp(char** argv)
             return;
         }
 
-
         //
         // Find out which file descriptor had an event.
         //
@@ -179,6 +176,7 @@ READLOOP:;
             int sink   = sinks[i];
             size_t bytes_read = 0;
 
+            dprintf(2, "%i->%i %i\n", source, sink, events);
 
             // Data is available.  Save the 'source' and 'sink'.
             if(events & POLLIN) {
@@ -196,6 +194,11 @@ READLOOP:;
                     if(sink != STDERR_FILENO)
                         close(sink);
 
+                    // If the child's stdout closes, assume there's nothing
+                    // left to proxy.
+                    if(sink == STDOUT_FILENO || sink == STDERR_FILENO)
+                        return;
+
                     sources[i] = -1;
                     continue;
                 }
@@ -208,18 +211,11 @@ READLOOP:;
                 registered_callback* p_callback = callbacks[i];
 
                 while(p_callback && p_callback->function) {
-                    callback_rv rv = p_callback->function(i,
-                                                         p_callback->ctx,
-                                                         &buffer,
-                                                         &buffer_used,
-                                                         &buffer_allocated);
-
-                    // A callback failed.  Be safe, shut down.
-                    if(rv != CB_OKAY) {
-                        kill(child_pid, SIGKILL);
-                        return;
-                    }
-
+                    p_callback->function(i,
+                                         p_callback->ctx,
+                                         &buffer,
+                                         &buffer_used,
+                                         &buffer_allocated);
                     p_callback++;
                 }
 
@@ -258,11 +254,13 @@ READLOOP:;
             // So we go back to the top of the loop and keep recv()ing
             // data until recv() fails.
             //
-            if(events & POLLHUP) {
+            if(events & POLLHUP || events & POLLNVAL) {
                 if(events & POLLIN) {
                     goto READLOOP;
                 } else {
                     close(source);
+
+                    printf("Closing %i\n", i);
 
                     // Don't close our own stderr, which are necessary
                     // for diagnostics
@@ -282,7 +280,7 @@ READLOOP:;
     } // while(1)
 }
 
-void register_io_callback(int fd, callback_fn function, void* ctx)
+void proxy_register_callback(int fd, proxy_callback_fn function, void* ctx)
 {
     int i = 0;
 

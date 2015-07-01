@@ -34,6 +34,8 @@
 #include <unistd.h>
 #include <libgen.h>
 
+#include "proxy.h"
+
 //******************************************************************************
 //                                PACKET HEADERS
 //******************************************************************************
@@ -93,6 +95,7 @@ typedef struct _proxied_socket
 
     packet  packet;                 //!< Pre-filled packet, for data that comes in a particular direction
     char    *buffer;                //!< Pointer into packet where the data should be stored
+    size_t  buffer_offset;          //!< Offset of our data buffer from the global buffer
 } proxied_socket;
 
 struct _proxied_socket  std_out;
@@ -112,7 +115,8 @@ record_and_forward
 void
 build_and_save_packet
 (
-    size_t          length,
+    char*           data,
+    size_t          data_length,
     proxied_socket  *in,
     proxied_socket  *out,
     int             syn,
@@ -140,14 +144,6 @@ void
 get_local_remote_info
 (
 );
-
-
-int
-create_pipes_fork_and_exec
-(
-    char **argv
-);
-
 
 //******************************************************************************
 //                                SIGNAL HANDLER
@@ -182,26 +178,15 @@ max
     return (a > b) ? a : b;
 }
 
-
-
-#ifdef __APPLE__
-int
-pipe2
-(
-    int fd[2],
-    int flags
-)
+int on_stdin(int fd,
+                        void* ctx,
+                        void**  buf,
+                        size_t* buf_used,
+                        size_t* buf_allocated_size)
 {
-    int rc = pipe(fd);
-    fcntl(fd[0], F_SETFD, flags);
-    fcntl(fd[1], F_SETFD, flags);
-    return rc;
+    build_and_save_packet(*buf, *buf_used, &std_in, &std_out, 0, 1);
+    return CB_OKAY;
 }
-
-
-
-#endif
-
 
 //------------------------------------ MAIN ------------------------------------
 int
@@ -252,11 +237,15 @@ main
     //
     std_in.sequence     = 0x1000;
     std_out.sequence    = 0x2000;
-    build_and_save_packet(0, &std_in, &std_out, 1, 0);      // SYN
+    build_and_save_packet(NULL, 0, &std_in, &std_out, 1, 0);      // SYN
     std_in.sequence++;
-    build_and_save_packet(0, &std_out,  &std_in, 1, 1);     // SYN+ACK
+    build_and_save_packet(NULL, 0, &std_out,  &std_in, 1, 1);     // SYN+ACK
     std_out.sequence++;
-    build_and_save_packet(0, &std_in, &std_out, 0, 1);      // ACK
+    build_and_save_packet(NULL, 0, &std_in, &std_out, 0, 1);      // ACK
+
+    register_io_callback(STDIN_FILENO, on_stdin, 0);
+    register_io_callback(STDOUT_FILENO, on_stdout, 0);
+    register_io_callback(STDERR_FILENO, on_stdout, 0);
 
 
     //
@@ -357,6 +346,7 @@ initialize_packet
     tcp->th_win = htons(2048);
 
     in->buffer  = (char *)(tcp + 1);
+    in->buffer_offset = buffer - in->buffer;
 }
 
 
@@ -371,7 +361,8 @@ initialize_packet
 void
 build_and_save_packet
 (
-    size_t          length,
+    char            *data,
+    size_t          data_length,
     proxied_socket  *in,
     proxied_socket  *out,
     int             syn,
@@ -382,6 +373,37 @@ build_and_save_packet
     struct tcphdr *tcp  = NULL;
     packet  * P         = &in->packet;
 
+
+
+
+    size_t used = *buf_used;
+    char*  buffer = *buf;
+    while(used > std_in.buffer_size) {
+        memcpy(std_in.buffer, buffer, std_in.buffer_size);
+        build_and_save_packet(std_in.buffer_size, &std_in, &std_out, 0, 1);
+        used -= std_in.buffer_size;
+    }
+
+
+
+
+
+
+    // Reallocate the buffer to be large enough
+    if(length > buffer_size) {
+        ptrdiff_t offset = in->buffer - buffer;
+
+        buffer_size = length * 2;
+        buffer = realloc(buffer, buffer_size);
+
+        if(!buffer) {
+            puts();
+            exit(1);
+        }
+
+        in->buffer = buffer + offset;
+        out->buffer = buffer + offset;
+    }
 
     if (in->sa.sa_family == AF_INET)
     {
@@ -527,64 +549,4 @@ get_local_remote_info
         std_in.sa4.sin_family       = AF_INET;
         std_in.sa4.sin_addr.s_addr  = inet_addr("0.0.0.0");
     }
-}
-
-
-
-//------------------------- CREATE PIPES FORK AND EXEC -------------------------
-/**
- * Create all of the pipes necessary for communication with the child process,
- * spawn it, and copy the pipes into the source/sink for the local and remote
- * sides.
- *
- * Returns the child pid.
- */
-int
-create_pipes_fork_and_exec
-(
-    char **argv
-)
-{
-    //
-    // Set up pipes for child
-    //
-    int pipes[2];
-    int std_in_read, std_in_write;
-    int std_out_read, std_out_write;
-
-    pipe2(pipes, O_CLOEXEC);
-    std_in_read     = pipes[0];
-    std_in_write    = pipes[1];
-
-    pipe2(pipes, O_CLOEXEC);
-    std_out_read    = pipes[0];
-    std_out_write   = pipes[1];
-
-    //
-    // Fork off the child
-    //
-    int child_pid = fork();
-
-    if (child_pid == 0)
-    {
-        dup2(std_in_read, 0);
-        dup2(std_out_write, 1);
-        dup2(std_out_write, 2);
-        execvp(argv[0], &argv[0]);
-        exit(1);
-    }
-
-    //
-    // Close unused file descriptors
-    //
-    close(std_out_write);
-    close(std_in_read);
-
-    std_in.source   = STDIN_FILENO;
-    std_in.sink     = std_in_write;
-
-    std_out.source  = std_out_read;
-    std_out.sink    = STDOUT_FILENO;
-
-    return child_pid;
 }

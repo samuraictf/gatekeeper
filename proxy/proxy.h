@@ -3,14 +3,6 @@
 #include <stdlib.h>
 
 /**
- * Callback return values.
- */
-typedef enum {
-    CB_ERROR=-1,
-    CB_OKAY=0
-} callback_rv;
-
-/**
  * I/O callback hook function type.
  *
  * @param fd
@@ -32,14 +24,11 @@ typedef enum {
  * @param  buf_allocated_size
  * Allocated size of buf_size.
  *
- * @return
- * One of the return codes in callback_rv.
- *
  * @notes
  * buf, buf_used, and buf_allocated_size may all be modified by
  * the callback.  buf should only be resized with realloc().
  */
-typedef callback_rv (*callback_fn)(int fd,
+typedef void (*proxy_callback_fn)(int fd,
                                    void* ctx,
                                    void**  buf,
                                    size_t* buf_used,
@@ -61,14 +50,19 @@ typedef callback_rv (*callback_fn)(int fd,
  * @param ctx      [description]
  * User-defined argument to function.
  */
-void register_io_callback(int fd, callback_fn function, void* ctx);
+void proxy_register_callback(int fd, proxy_callback_fn function, void* ctx);
 
 /**
- * Fork, exec, and start pumping data.
+ * Fork and exec
  */
-void pump_execvp(char** argv);
+void proxy_fork_execvp(char** argv);
+
+/**
+ * Pump data
+ */
+void proxy_pump();
 
 /**
  * Child PID, from child forked in pump_execvp.
  */
-extern int child_pid;
+extern int proxy_child_pid;

@@ -19,7 +19,7 @@ $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
 	make -C $(@D) clean
 
 %.test:
-	make -C $(@D) test
+	bats */*.bats
 
 .PHONY: clean all test
 

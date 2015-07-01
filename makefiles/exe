@@ -69,8 +69,8 @@ OBJ_FILES = $(patsubst %.c, %.o, $(C_FILES)) $(patsubst %.cpp, %.o, $(CPP_FILES)
 # -- Dependencies --
 DEPFILE = .depfile
 
-all: $(OUT)
-test: all
+all:: $(OUT)
+test:: all
 	bats *.bats
 
 ifeq ("$(CPP_FILES)","")
@@ -106,7 +106,7 @@ $(DEPFILE):
 	rm -f $(DEPFILE)
 	$(CC)  -E -MM $(CFLAGS) $(INCLUDES) $(CPP_FILES) $(C_FILES) -MF $(DEPFILE)
 
-clean:
+clean::
 	rm -f $(OUT) $(SRC)/*.o $(DEPFILE)
 
 # Generated dependency file.  Note the dependencies on
