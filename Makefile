@@ -12,6 +12,7 @@ clean: $(TARGETS:=.clean)
 test: $(TARGETS) $(TARGETS:=.test)
 
 $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
+	@echo ========== $(@D) ==========
 	make -C $(@D)
 
 %.clean:
