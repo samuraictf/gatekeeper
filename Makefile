@@ -1,19 +1,22 @@
-TARGETS=$(wildcard */Makefile)
+# Enable secondary expansion
+.SECONDEXPANSION:
 
-all:
-	for target in $(TARGETS); do \
-		echo ======= $$(dirname $$target) ======= ; \
-		pushd $$(dirname $$target) >/dev/null; \
-		make all; \
-		popd >/dev/null; \
-	done
+# For each directory $dir which has a makefile, the executable name
+# should be $dir/$dir
+TARGETS:=$(wildcard */Makefile)
+TARGETS:=$(foreach makefile, $(TARGETS), $(shell dirname $(makefile)))
+TARGETS:=$(foreach dir, $(TARGETS), $(dir)/$(dir))
+
+all: $(TARGETS)
 
 clean:
-	for target in $(TARGETS); do \
-		echo ======= $$(dirname $$target) ======= ; \
-		pushd $$(dirname $$target) >/dev/null; \
-		make clean; \
-		popd >/dev/null; \
+	@- for target in $(TARGETS); do \
+		make -C $$(dirname $$target) clean; \
 	done
 
+$(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
+	make -C $(@D)
+
 .PHONY: clean all
+.SUFFIXES: Makefile
+
