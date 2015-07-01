@@ -1,3 +1,4 @@
+#ifndef __APPLE__
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+
 void sigchld_handler(int dontcare)
 {
     exit(dontcare);
@@ -56,4 +58,10 @@ main
     // Kill all processes in our process group.
     kill(kill_pid, SIGKILL);
 }
-
+#else
+#include <stdio.h>
+int main()
+{
+    puts("inotify does not work on OSX");
+}
+#endif

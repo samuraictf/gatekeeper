@@ -1,3 +1,4 @@
+#ifndef __APPLE__
 #define __USE_GNU   1
 #define _GNU_SOURCE 1
 
@@ -105,3 +106,10 @@ main
     disallow_socketcall();
     execvp(argv[1],&argv[1]);
 }
+#else
+#include <stdio.h>
+int main()
+{
+    puts("seccomp does not work on OSX");
+}
+#endif

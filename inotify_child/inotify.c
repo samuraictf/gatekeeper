@@ -1,3 +1,4 @@
+#ifndef __APPLE__
 #define _GNU_SOURCE         /* See feature_test_macros(7) */
 #include <signal.h>
 #include <stdio.h>
@@ -128,4 +129,10 @@ main
         kill(child_pid, SIGCONT);
     }
 }
-
+#else
+#include <stdio.h>
+int main()
+{
+    puts("inotify does not work on OSX");
+}
+#endif
