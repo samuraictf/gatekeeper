@@ -27,7 +27,7 @@ typedef struct {
 
 #define MAX_CALLBACKS 64
 
-int child_pid;
+int proxy_child_pid;
 int std_in_read, std_in_write;
 int std_out_read, std_out_write;
 int std_err_read, std_err_write;
@@ -85,9 +85,9 @@ void proxy_fork_execvp(char** argv)
     std_err_read    = pipes[0];
     std_err_write   = pipes[1];
 
-    child_pid = fork();
+    proxy_child_pid = fork();
 
-    if(child_pid == 0) {
+    if(proxy_child_pid == 0) {
         if(stdin_callbacks[0].function) {
             dup2(std_in_read,  STDIN_FILENO);
         }
@@ -120,6 +120,8 @@ void proxy_fork_execvp(char** argv)
 }
 
 void proxy_pump() {
+    int proxied_fds = 3;
+
     // These are the file descriptor source/sink pairs.
     int sources[] = { STDIN_FILENO, std_out_read, std_err_read };
     int sinks[] = { std_in_write, STDOUT_FILENO, STDERR_FILENO };
@@ -128,14 +130,23 @@ void proxy_pump() {
     if(!stdin_callbacks[0].function) {
         sources[STDIN_FILENO] = -1;
         sinks[STDIN_FILENO] = -1;
+        proxied_fds--;
     }
     if(!stdout_callbacks[0].function) {
         sources[STDOUT_FILENO] = -1;
         sinks[STDOUT_FILENO] = -1;
+        proxied_fds--;
     }
     if(!stderr_callbacks[0].function) {
         sources[STDERR_FILENO] = -1;
         sinks[STDERR_FILENO] = -1;
+        proxied_fds--;
+    }
+
+    // No file descriptors to bother with? Just wait.
+    if(!proxied_fds) {
+        waitpid(proxy_child_pid, NULL, 0);
+        return;
     }
 
     // Buffer management.
@@ -163,14 +174,14 @@ void proxy_pump() {
         if(good_fds == 0)
         {
             // Everything closed nicely.
-            kill(child_pid, SIGKILL);
+            kill(proxy_child_pid, SIGKILL);
             return;
         }
 
         if (poll(pollfds, 3, -1) <= 0)
         {
             // An error occurred while polling.
-            kill(child_pid, SIGKILL);
+            kill(proxy_child_pid, SIGKILL);
             return;
         }
 
@@ -243,7 +254,7 @@ READLOOP:;
                     // In either case, we should die.
                     if (n_written < 0)
                     {
-                        kill(child_pid, SIGKILL);
+                        kill(proxy_child_pid, SIGKILL);
                         return;
                     }
                 }
