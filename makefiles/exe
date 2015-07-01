@@ -15,13 +15,15 @@ LDFLAGS += -L.
 
 # -- Flags --
 CFLAGS 		+= $(INCLUDES)
-
 CFLAGS      += -std=gnu99 -fPIC
-LDFLAGS     += -fPIC -pie
+LDFLAGS     += -fPIC
 
 # -- Security Flags --
-LDFLAGS     +=  -z now -z noexecstack
-CFLAGS      +=  -fstack-protector-all \
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+	LDFLAGS     +=  -z now -z noexecstack
+endif
+CFLAGS      +=  -fstack-protector \
 				-Wformat \
 				-Wformat=2 \
 				-Wformat-security \
@@ -43,8 +45,11 @@ CFLAGS      +=  -fstack-protector-all \
 ifdef DEBUG
 	CFLAGS		+= -g -O0 -DDEBUG=1
 	LDFLAGS		+= -g -O0 -DDEBUG=1
+	STRIP       = true
 else ifndef NOSTRIP
-	LDFLAGS		+= -s
+	STRIP		+= strip
+else
+
 endif
 
 ifdef ASAN
@@ -65,6 +70,8 @@ OBJ_FILES = $(patsubst %.c, %.o, $(C_FILES)) $(patsubst %.cpp, %.o, $(CPP_FILES)
 DEPFILE = .depfile
 
 all: $(OUT)
+test: all
+	bats *.bats
 
 ifeq ("$(CPP_FILES)","")
 LINK:=$(CXX)
