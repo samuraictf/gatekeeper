@@ -181,8 +181,10 @@ void blacklist_sockaddr(struct sockaddr* addr) {
             struct sockaddr_in6* sa_in = (struct sockaddr_in6*) addr;
             inet_ntop(addr->sa_family, &sa_in->sin6_addr, straddr, sizeof(straddr));
         }
+#ifdef __APPLE__
         case AF_LINK:
             break;
+#endif
         default:
             puts("GUrcTEwJMgtRU3MB");
             exit(1);
