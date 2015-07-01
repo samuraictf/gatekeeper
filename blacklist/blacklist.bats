@@ -12,7 +12,7 @@ setup() {
 }
 
 @test "blocks localhost" {
-    ./blacklist nc -lp $PORT -e './blacklist echo hi' &
+    nc -lp $PORT -e './blacklist echo hi' &
     run nc localhost $PORT
     [ "$output" = "No connections from localhost" ]
 }

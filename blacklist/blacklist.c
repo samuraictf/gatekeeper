@@ -170,8 +170,6 @@ void blacklist_sockaddr(struct sockaddr* addr) {
     char straddr[INET6_ADDRSTRLEN] = {0};
     int af = addr->sa_family;
 
-    dprintf(2, "%i\n", af);
-
     switch(af) {
         case AF_INET: {
             struct sockaddr_in* sa_in = (struct sockaddr_in*) addr;
@@ -192,7 +190,6 @@ void blacklist_sockaddr(struct sockaddr* addr) {
     }
 
     if(strlen(straddr)) {
-        puts(straddr);
         blacklist_one(straddr);
     }
 }
