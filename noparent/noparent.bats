@@ -4,7 +4,12 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "chroot starts at /" {
-    run ./noparent sh -c 'echo $PPID'
-    [ "$output" = "1" ]
+@test "noparent - disabled" {
+    output=$(sh -c 'echo $PPID')
+    [ "$output" = "$$" ]
+}
+
+@test "noparent" {
+    output=$(noparent sh -c 'echo $PPID')
+    [ "$output" != "$$" ]
 }
