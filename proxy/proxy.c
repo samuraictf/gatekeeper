@@ -277,8 +277,6 @@ READLOOP:;
                 } else {
                     close(source);
 
-                    printf("Closing %i\n", i);
-
                     // Don't close our own stderr, which are necessary
                     // for diagnostics
                     if(sink != STDERR_FILENO)
