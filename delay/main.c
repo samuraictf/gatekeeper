@@ -14,5 +14,6 @@ int main(int argc, char** argv) {
     delay_stdout(milliseconds);
     delay_stdin(milliseconds);
 
-    pump_execvp(&argv[2]);
+    proxy_fork_execvp(&argv[2]);
+    proxy_pump();
 }

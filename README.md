@@ -6,6 +6,10 @@ Each module is available as a stand-alone binary, which will either `fork` and `
 
 Each module is also available as a library, which can be compiled into a larger, monolithic binary.
 
+## Requirements
+
+- libpcre3-dev
+
 ## Chaining Modules
 
 The modules are designed to be included in a larger project, or chained directly.  For example:
