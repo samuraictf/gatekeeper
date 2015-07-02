@@ -8,18 +8,20 @@ setup() {
     echo > pattern
     run regex pattern echo hola
     [ "$output" = "hola" ]
+    [ "$status" = 0 ]
 }
 
 
 @test "regex passthru" {
-    echo he..o > pattern
+    echo 'he..o' > pattern
     run regex pattern echo hola
     [ "$output" = "hola" ]
+    [ "$status" = 0 ]
 }
 
 @test "regex match" {
-    echo he..o > pattern
-    run echo he..o > pattern && regex pattern echo hello
-    echo "$output" > output
-    [ "$output" = "Sorry, Dave.  I can't allow you to do that." ]
+    echo 'he[l]{2}o' > pattern
+    run regex pattern echo hello
+    [ "$output" != 0 ]
+    [ "$status" = 255 ]
 }
