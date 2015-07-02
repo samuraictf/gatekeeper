@@ -9,7 +9,8 @@ TARGETS:=$(foreach dir, $(TARGETS), $(dir)/$(dir))
 
 all: $(TARGETS)
 clean: $(TARGETS:=.clean)
-test: $(TARGETS) $(TARGETS:=.test)
+test: $(TARGETS) 
+	bats */*.bats preload/*/*.bats
 
 $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
 	@echo ========== $(@D) ==========
@@ -17,9 +18,6 @@ $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
 
 %.clean:
 	make -C $(@D) clean
-
-%.test:
-	bats */*.bats preload/*/*.bats
 
 .PHONY: clean all test
 
