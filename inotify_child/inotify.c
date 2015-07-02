@@ -116,6 +116,7 @@ main
 
         // Stop the child process immediately
         kill(child_pid, SIGSTOP);
+        ignore_SIGCHLD_count++;
 
         // Check to see if it has the file descriptor open
         if(find_inode(child_pid, inode)) {
