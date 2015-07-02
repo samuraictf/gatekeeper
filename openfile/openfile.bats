@@ -5,6 +5,6 @@ setup() {
 }
 
 @test "open file on static fd" {
-    run ./openfile <(echo hello) 1234 sh -c 'cat <&1234'
+    run openfile <(echo hello) 666 bash -c 'cat <&666'
     [ "$output" = "hello" ]
 }
