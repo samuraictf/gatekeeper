@@ -360,7 +360,6 @@ int main(int argc, char * argv[])
         setrlimit(RLIMIT_FSIZE, &rl);
     }
 
-
     if (leak_fd_fname != NULL) {
         leak_fd = open(leak_fd_fname, O_RDONLY, NULL);
         dup2(leak_fd, 1337);

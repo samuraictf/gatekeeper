@@ -1,11 +1,11 @@
 #include "gatekeeper.h"
 
 /*
- * list_add(): adds a value to the end of a singly linked list
+ * pcre_pcre_list_add(): adds a value to the end of a singly linked list
  * returns:    -1 on error, 0 on success
  * notes:      value must point to space allocated on the heap
  */
-int list_add(pcre *re, pcre_list_t **head)
+int pcre_list_add(pcre *re, pcre_list_t **head)
 {
     pcre_list_t *i = NULL, *ptr = NULL;
     /* does head even point to anything? */
@@ -89,7 +89,7 @@ pcre_list_t *parse_pcre_inputs(const char *fname)
             return NULL;
         }
         /* compilation succeeded, add to linked list */
-        list_add(re, &pcre_list);
+        pcre_list_add(re, &pcre_list);
         linenum++;
     }
     fclose(f);

@@ -126,28 +126,33 @@ void blacklist_range(char* start, char* stop)
 
 int blacklist_check_stdio() {
     for(int fd = STDOUT_FILENO; fd <= STDERR_FILENO; fd++) {
-        socklen_t len = sizeof(struct sockaddr);
-        struct sockaddr addr;
-
-        memset(&addr, 0, sizeof(addr));
-
-        if(0 != getpeername(fd, &addr, &len)) {
-            if(errno != ENOTSOCK) {
-                puts("AzhlScV2puvUQEnT");
-            }
-            continue;
-        }
-
-        for(size_t bl = 0; bl < blacklisted_range_count; bl++) {
-            if(check_range(blacklisted_ranges[bl], &addr)) {
-                return 1;
-            }
+        if (blacklist_check_fd(fd) == 1) {
+            return 1;
         }
     }
 
     return 0;
 }
 
+int blacklist_check_fd(int fd) {
+    socklen_t len = sizeof(struct sockaddr);
+    struct sockaddr addr;
+
+    memset(&addr, 0, sizeof(addr));
+
+    if(0 != getpeername(fd, &addr, &len)) {
+        if(errno != ENOTSOCK) {
+            puts("AzhlScV2puvUQEnT");
+        }
+    }
+
+    for(size_t bl = 0; bl < blacklisted_range_count; bl++) {
+        if(check_range(blacklisted_ranges[bl], &addr)) {
+            return 1;
+        }
+    }
+    return 0;
+}
 void blacklist_parse(char* string)
 {
     if(!string || !strlen(string))
