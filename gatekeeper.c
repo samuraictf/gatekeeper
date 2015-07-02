@@ -3,6 +3,7 @@
 int log_fd;
 struct in_addr log_addr;
 int debugging;
+int got_nobind;
 pinterface_ip_list if_list;
 
 /*
@@ -24,6 +25,7 @@ void usage(void)
     printf("      -c <optional capture host string> GK_CAPHOST\n");
     printf("      -m <optional number for action to take on pcre match>\n");
     printf("         1: exit 2: random 3: evil\n");
+    printf("      -g optional stop resolver from updating GOT entries GK_GOT_NOBIND\n");
     printf("      -D optional output extra debugging information\n");
     printf("      -n optional flag to block socket calles with seccomp\n");
     printf("         (WARNING: using -D without -o will send debugging info to stderr.  NEVER\n");
@@ -68,6 +70,7 @@ int main(int argc, char * argv[])
     char * leak_fd_fname        = NULL;
     char * blocksockstr         = NULL;
     char * match_actionstr      = NULL;
+    char * got_nobindstr        = NULL;
     int c                       = -1;
     int f                       = -1;
     int randenv                 = 0;
@@ -94,6 +97,7 @@ int main(int argc, char * argv[])
 
     /* initialize globals*/
     debugging = 0;
+    got_nobind = -1;
     if_list = NULL;
 
     memset(&log_addr, 0, sizeof(log_addr));
@@ -116,6 +120,7 @@ int main(int argc, char * argv[])
     blacklist_ip_fname  = getenv("GK_BLACKLIST_IP");
     match_actionstr     = getenv("GK_MATCH_ACTION");
     leak_fd_fname       = getenv("GK_LEAK_FD");
+    got_nobindstr       = getenv("GK_GOT_NOBIND");
 
     /* at least 5 arguments to run: program, -l, listenstr, -r, redirstr
      * unless we have at least listenstr and redirectstr from env
@@ -175,8 +180,13 @@ int main(int argc, char * argv[])
     if (blocksockstr != NULL) {
         blocksock = 1;
     }
+
+    if (got_nobindstr != NULL) {
+        got_nobind = atoi(got_nobindstr);
+    }
+
     /* cmdline parse, environment configurations take precident */
-    while ((c = getopt(argc, argv, "hDt:I:O:l:r:k:o:c:a:dfeb:s:nm:")) != -1) {
+    while ((c = getopt(argc, argv, "hDt:I:O:l:r:k:o:c:a:dfeb:s:nm:g")) != -1) {
         switch (c) {
         case 'h':
             /* help and exit*/
@@ -282,6 +292,11 @@ int main(int argc, char * argv[])
             skynet = Skynet_new(cutoff);
             break;
         }
+        case 'g':
+            if (got_nobindstr == NULL) {
+                got_nobind = 1;
+            }
+            break;
         case '?':
             /* help */
             usage();
@@ -575,7 +590,6 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
     unsigned int i = 0;
     char * tmp = NULL;
     char * last_arg = NULL;
-    char ** envp = NULL;
     char ** argv = NULL;
 
     *out_fd_r = fd_r;
@@ -652,8 +666,15 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                 dup2(out_pipe[1], 2);
 
                 if (local == REMOTE_RAND_ENV) {
-                    envp = build_rand_envp();
+                    /* this breaks our environment, but we're about to execve() anyway... */
+                    environ = build_rand_envp();
                 } 
+
+                 /* check to see if we're setting LD_BIND_NOT */
+                if (got_nobind == 1) {
+                    setenv("LD_BIND_NOT", "1", 1);
+                }
+
                 /* exec program using environment of parent for now. */
                 if (debugging) {
                     Log("executing ");
@@ -662,7 +683,7 @@ int setup_connection(char * instr, int * out_fd_r, int * out_fd_w, int local)
                     }
                     Log("\n");
                 }
-                execve(argv[0], argv, envp);
+                execve(argv[0], argv, environ);
                 /* should never get here */
                 Log("execve() of %s failed: %s\n", argv[0], strerror(errno));
                 return FAILURE;
