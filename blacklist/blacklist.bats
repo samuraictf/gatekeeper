@@ -3,19 +3,15 @@
 setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
     export PORT=$((10000 + $RANDOM % 10000))
+
+    export FLAG="-c"
+    if uname -s | grep Darwin; then
+    	export FLAG="-e"
+    fi
 }
 
-@test "blocks localhost (osx)" {
-	uname -s | grep Linux && skip
-    nc -lp $PORT -e './blacklist echo hi' &
-    run nc localhost $PORT
-    [ "$output" = "No connections from localhost" ]
-}
-
-
-@test "blocks localhost (linux)" {
-	uname -s | grep Darwin && skip
-    nc -lp $PORT -c './blacklist echo hi' &
+@test "blocks localhost" {
+    nc -lp $PORT $FLAG 'blacklist echo hi' &
     run nc localhost $PORT
     [ "$output" = "No connections from localhost" ]
 }

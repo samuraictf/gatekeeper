@@ -127,7 +127,7 @@ int blacklist_check_stdio() {
             if(errno != ENOTSOCK) {
                 puts("AzhlScV2puvUQEnT");
             }
-            puts("Not a socket");
+            // puts("Not a socket");
             continue;
         }
 
@@ -185,8 +185,10 @@ void blacklist_sockaddr(struct sockaddr* addr) {
             break;
 #endif
         default:
-            puts("GUrcTEwJMgtRU3MB");
-            exit(1);
+            // dprintf(2, "%i\n", af);
+            // puts("GUrcTEwJMgtRU3MB");
+            // exit(1);
+            break;
     }
 
     if(strlen(straddr)) {
