@@ -5,23 +5,23 @@ setup() {
 }
 
 @test "regex empty file" {
-    echo > pattern
-    run regex pattern echo hola
+    echo > "$BATS_TMPDIR/pattern"
+    run regex "$BATS_TMPDIR/pattern" echo hola
     [ "$output" = "hola" ]
     [ "$status" = 0 ]
 }
 
 
 @test "regex passthru" {
-    echo 'he..o' > pattern
-    run regex pattern echo hola
+    echo 'he..o' > "$BATS_TMPDIR/pattern"
+    run regex "$BATS_TMPDIR/pattern" echo hola
     [ "$output" = "hola" ]
     [ "$status" = 0 ]
 }
 
 @test "regex match" {
-    echo 'he[l]{2}o' > pattern
-    run regex pattern echo hello
-    [ "$output" != 0 ]
+    echo 'he[l]+o' > "${BATS_TMPDIR}pattern"
+    run regex "$BATS_TMPDIR/pattern" echo hello
+    [[ "$output" =~ "Sorry, Dave" ]]
     [ "$status" = 255 ]
 }

@@ -140,7 +140,6 @@ pcre* load_expressions(char* filename) {
 void
 perform_pcre_filter(int fd, void* ctx, void** buf, size_t *used, size_t *allocated)
 {
-    puts("!");
     pcre_data* data = (pcre_data*) ctx;
     char* match;
 

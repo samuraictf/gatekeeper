@@ -10,7 +10,7 @@ void callback(char* buffer, size_t buffer_size, char* match)
 {
     kill(regex_child_pid, SIGKILL);
     puts("Sorry, Dave.  I can't allow you to do that.");
-    _exit(-1);
+    exit(-1);
 }
 
 int main(int argc, char** argv) {
