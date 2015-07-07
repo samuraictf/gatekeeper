@@ -64,6 +64,7 @@ Here's a short descrption of each module.  To build a module, just run `make` in
 - [`setsid`](setsid/README.md) - Spawns the child in a new session.
 - [`signal`](signal/README.md) - Masks off all signals.  May interfere with `segv` and `alarm` modules.
 - [`unbuffer`](unbuffer/README.md) - Effectively disables libc buffering of stdout in the child by creating a pseudo-terminal (PTY) as its stdout (instead of a pipe).
+- [`unsocket`](unsocket/README.md) - Turns all `send` and `recv` calls, which only work on sockets, into `write` and `read` calls, which work just fine on sockets, files, or pipes.
 
 ## Future Modules
 
