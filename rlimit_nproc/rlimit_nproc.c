@@ -7,7 +7,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 int main(int argc, char** argv) {
-    if(argc < 2) {
+    if(argc < 3) {
         printf("Usage: %s <limit> argv0 argv1\n", argv[0]);
         exit(1);
     }
