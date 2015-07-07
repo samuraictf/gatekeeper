@@ -21,4 +21,4 @@ $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
 
 %.bats: %;
 
-.PHONY: clean all test $(TARGETS:=.bats)
+.PHONY: clean all test
