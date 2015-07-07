@@ -7,7 +7,6 @@ setup() {
 }
 
 @test "${BATS_TEST_DIRNAME##*/} disabled" {
-    # The output is being captured, so stdout is a pipe..
     example > "$FILE"
     run xxd "$FILE"
     [[ "$output" =~ "5868 656c 6c6f 0a" ]]
