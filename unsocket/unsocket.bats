@@ -10,7 +10,7 @@ setup() {
 	[ "$output" = "" ]
 }
 
-@test "${BATS_TEST_DIRNAME##*/} disabled" {
+@test "${BATS_TEST_DIRNAME##*/}" {
     run env LD_PRELOAD="$BATS_TEST_DIRNAME/unsocket" "example"
     [ "$output" = "hello" ]
 }
