@@ -28,7 +28,7 @@ $ ./blacklist/blacklist \
   ./segv/segv MYSEGV \
   ./setpgid/setpgid \
   ./setsid/setsid \
-  /usr/bin/env LD_PRELOAD="$PWD/preload/ldfuck/ldfuck.so $PWD/preload/no_execve/no_execve.so" \
+  /usr/bin/env LD_PRELOAD="$PWD/ldfuck/ldfuck.so $PWD/no_execve/no_execve.so" \
   /bin/sh
 ```
 
@@ -49,11 +49,10 @@ Here's a short descrption of each module.  To build a module, just run `make` in
 - [`noparent`](noparent/README.md) - Performs a double-fork before `execve`ing so that, in the child process, `getppid()` will return `1` (pid of `init`) so that `kill(SIGTERM, getppid())` shellcode is useless.
 - [`openfile`](openfile/README.md) - Opens a specific file on a specific file descriptor.
 - [`pcap`](pcap/README.md) - Captures all stdin/stdout/stderr to a pcap file, with accurate address information gathered from `getpeername`.
-- [`preload`](preload/README.md) - A collection of `LD_PRELOAD` modules.
-- [`preload/devctf`](preload/devctf/README.md) - Hooks calls to `open` to catch `open("/dev/ctf",...)` and returns a pre-determined file descriptor.  This allows access to `/dev/ctf` from within a chroot.
-- [`preload/ldfuck`](preload/ldfuck/README.md) - Fucks with internal linker structures which are used to leak function addresses over-the-wire.
-- [`preload/no_execve`](preload/no_execve/README.md) - Hooks all `exec*` and related (`system`, `popen`) function calls via the PLT.  Also disables `execve` via seccomp-bpf.
-- [`preload/onepath`](preload/onepath/README.md) - Allows `execve` calls, but checks `/proc/self/exe` in the new process to see if it is a specific, permitted path.
+- [`devctf`](devctf/README.md) - Hooks calls to `open` to catch `open("/dev/ctf",...)` and returns a pre-determined file descriptor.  This allows access to `/dev/ctf` from within a chroot.
+- [`ldfuck`](ldfuck/README.md) - Fucks with internal linker structures which are used to leak function addresses over-the-wire.
+- [`no_execve`](no_execve/README.md) - Hooks all `exec*` and related (`system`, `popen`) function calls via the PLT.  Also disables `execve` via seccomp-bpf.
+- [`onepath`](onepath/README.md) - Allows `execve` calls, but checks `/proc/self/exe` in the new process to see if it is a specific, permitted path.
 - [`proxy`](proxy/README.md) - Communications forwarding template and hook library.  Ideally suited to only performing a single copy of stdin/stdout/stderr instead of multiple copies between various consumers.
 - [`randenv`](randenv/README.md) - Adds a random-length environment variable to the environment, which should modify offsets on the stack.
 - [`regex`](regex/README.md) - I/O filtering based on regular expressions

@@ -1,5 +1,4 @@
 LDFLAGS+=-shared -ldl
-SUFFIX=.so
 
 all:: example/example
 

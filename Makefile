@@ -3,14 +3,14 @@
 
 # For each directory $dir which has a makefile, the executable name
 # should be $dir/$dir
-TARGETS:=$(wildcard */Makefile)
+TARGETS:=$(sort $(wildcard */Makefile))
 TARGETS:=$(foreach makefile, $(TARGETS), $(shell dirname $(makefile)))
 TARGETS:=$(foreach dir, $(TARGETS), $(dir)/$(dir))
 
 all: $(TARGETS)
 clean: $(TARGETS:=.clean)
-test: $(TARGETS) 
-	bats */*.bats preload/*/*.bats
+test: $(TARGETS:=.bats) 
+	bats $^
 
 $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
 	@echo ========== $(@D) ==========

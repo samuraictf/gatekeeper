@@ -6,7 +6,7 @@ setup() {
 
 @test "${BATS_TEST_DIRNAME##*/}" {
     uname -s | grep Darwin && skip
-	run env LD_PRELOAD="$BATS_TEST_DIRNAME/no_execve.so" sh -c 'echo hi; /bin/echo hello'
+	run env LD_PRELOAD="$BATS_TEST_DIRNAME/no_execve" sh -c 'echo hi; /bin/echo hello'
 	[[ "$output" =~ "hi" ]]
 	[[ ! "$output" =~ "hello" ]]
     [ "$status" = 2 ]

@@ -1,1 +1,4 @@
-../../makefiles/exe
+include Makefile.exe
+
+CFLAGS=
+LDFLAGS=
