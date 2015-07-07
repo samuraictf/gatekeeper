@@ -9,7 +9,7 @@ TARGETS:=$(foreach dir, $(TARGETS), $(dir)/$(dir))
 
 all: $(TARGETS)
 clean: $(TARGETS:=.clean)
-test: $(TARGETS:=.bats) 
+test: $(TARGETS:=.bats)
 	bats $^
 
 $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
@@ -19,5 +19,6 @@ $(TARGETS): % : $$(wildcard $$(@D)/*.c) $$(wildcard $$(@D)/*.h)
 %.clean:
 	make -C $(@D) clean
 
-.PHONY: clean all test
+%.bats: %;
 
+.PHONY: clean all test $(TARGETS:=.bats)
