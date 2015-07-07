@@ -4,6 +4,6 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "malloc fills" {
+@test "${BATS_TEST_DIRNAME##*/} fills" {
     malloc $BATS_TEST_DIRNAME/example/example | grep "AA AA AA"
 }

@@ -5,7 +5,7 @@ setup() {
     export FLAG="${BATS_TMPDIR}flag"
 }
 
-@test "$(basename \"$BATS_TEST_DIRNAME\") disabled" {
+@test "${BATS_TEST_DIRNAME##*/} disabled" {
     uname -s | grep Darwin && skip
 
     echo FLAG > "$FLAG"
@@ -14,7 +14,7 @@ setup() {
     [ "$status" = 3 ]
 }
 
-@test "$(basename \"$BATS_TEST_DIRNAME\")" {
+@test "${BATS_TEST_DIRNAME##*/}" {
     uname -s | grep Darwin && skip
 
     echo FLAG > "$FLAG"

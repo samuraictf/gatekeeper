@@ -5,14 +5,14 @@ setup() {
 }
 
 
-@test "ldfuck succeeds when not active" {
+@test "${BATS_TEST_DIRNAME##*/} succeeds when not active" {
     uname -s | grep Darwin && skip
     run python \
     	$BATS_TEST_DIRNAME/example/demo.py \
     	$BATS_TEST_DIRNAME/example/example
 	[ "$status" = 0 ]
 }
-@test "ldfuck causes failure when activated" {
+@test "${BATS_TEST_DIRNAME##*/} causes failure when activated" {
     uname -s | grep Darwin && skip
     run env \
     	LD_PRELOAD=$BATS_TEST_DIRNAME/ldfuck.so \

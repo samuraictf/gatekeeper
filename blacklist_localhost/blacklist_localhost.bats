@@ -11,7 +11,7 @@ setup() {
 }
 
 
-@test "blocks localhost" {
+@test "${BATS_TEST_DIRNAME##*/} blocks localhost" {
     nc -lp $PORT $FLAG "$BATS_TEST_DIRNAME/blacklist_localhost echo hi" &
     run nc localhost $PORT
     [ "$output" = "No connections from localhost" ]

@@ -6,7 +6,7 @@ setup() {
     export SETPGID="${BATS_TEST_DIRNAME}../setpgid/setpgid"
 }
 
-@test "$(basename \"$BATS_TEST_DIRNAME\") disabled" {
+@test "${BATS_TEST_DIRNAME##*/} disabled" {
     uname -s | grep Darwin && skip
 
     echo FLAG > "$FLAG"
@@ -15,7 +15,7 @@ setup() {
     [ "$status" = 3 ]
 }
 
-@test "$(basename \"$BATS_TEST_DIRNAME\")" {
+@test "${BATS_TEST_DIRNAME##*/}" {
     uname -s | grep Darwin && skip
 
     echo FLAG > "$FLAG"

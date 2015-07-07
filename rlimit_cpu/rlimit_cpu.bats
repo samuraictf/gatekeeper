@@ -9,7 +9,7 @@ setup() {
     fi
 }
 
-@test "rlimit cpu time maximu" {
+@test "${BATS_TEST_DIRNAME##*/} maximum" {
     run rlimit_cpu 0 sh -c 'while true; do true; done'
     [ "$status" = $CODE ]
 }

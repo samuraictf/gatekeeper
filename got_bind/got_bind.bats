@@ -4,13 +4,13 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "got_bind disabled" {
+@test "${BATS_TEST_DIRNAME##*/} disabled" {
     run python $BATS_TEST_DIRNAME/example/demo.py $BATS_TEST_DIRNAME/example/example
 
     [ "$status" = 0 ]
 }
 
-@test "got_bind enabled" {
+@test "${BATS_TEST_DIRNAME##*/} enabled" {
     run got_bind python $BATS_TEST_DIRNAME/example/demo.py $BATS_TEST_DIRNAME/example/example
 
     [ "$status" = 2 ]

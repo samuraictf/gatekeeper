@@ -5,7 +5,7 @@ setup() {
 }
 
 
-@test "onepath enforces proc/self/exe" {
+@test "${BATS_TEST_DIRNAME##*/} enforces proc/self/exe" {
     uname -s | grep Darwin && skip
     run env \
     	LD_PRELOAD=$BATS_TEST_DIRNAME/onepath.so \

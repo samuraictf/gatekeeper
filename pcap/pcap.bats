@@ -4,7 +4,7 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "$(basename $BATS_TEST_DIRNAME)" {
+@test "${BATS_TEST_DIRNAME##*/}" {
     pcap foo.pcap echo hello
     run tcpdump -Ar foo.pcap
     [[ "$output" =~ "hello" ]]

@@ -4,12 +4,12 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "noparent - disabled" {
+@test "${BATS_TEST_DIRNAME##*/} disabled" {
     output=$(sh -c 'echo $PPID')
     [ "$output" = "$$" ]
 }
 
-@test "noparent" {
+@test "${BATS_TEST_DIRNAME##*/}" {
     output=$(noparent sh -c 'echo $PPID')
     [ "$output" != "$$" ]
 }

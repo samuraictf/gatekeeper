@@ -4,11 +4,11 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "works with zero" {
+@test "${BATS_TEST_DIRNAME##*/} works with zero" {
     run alarm 0 sh -c 'sleep 1; echo hi'
     [ "$output" = "hi" ]
 }
 
-@test "kills properly" {
+@test "${BATS_TEST_DIRNAME##*/} kills properly" {
     run alarm 1 sh -c 'sleep 1; echo hi'
 }

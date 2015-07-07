@@ -5,28 +5,12 @@ setup() {
     export SETPGID=$BATS_TEST_DIRNAME/../setpgid/setpgid
 }
 
-@test "$(basename $BATS_TEST_DIRNAME) disabled" {
+@test "${BATS_TEST_DIRNAME##*/} disabled" {
     run bash -c 'echo Hello; kill -SIGTERM $$; echo Goodbye'
     [ "$status" = 143 ]
 }
 
-@test "$(basename $BATS_TEST_DIRNAME)" {
+@test "${BATS_TEST_DIRNAME##*/}" {
     run signal bash -c 'echo Hello; kill -SIGTERM $$; echo Goodbye'
     [ "$status" = 0 ]
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

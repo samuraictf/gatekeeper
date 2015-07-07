@@ -4,7 +4,7 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "no_execve" {
+@test "${BATS_TEST_DIRNAME##*/}" {
     uname -s | grep Darwin && skip
 	run env LD_PRELOAD="$BATS_TEST_DIRNAME/no_execve.so" sh -c 'echo hi; /bin/echo hello'
 	[[ "$output" =~ "hi" ]]

@@ -4,7 +4,7 @@ setup() {
     export PATH="$BATS_TEST_DIRNAME:$PATH"
 }
 
-@test "open file on static fd" {
+@test "${BATS_TEST_DIRNAME##*/}  static fd" {
     run openfile <(echo hello) 666 bash -c 'cat <&666'
     [ "$output" = "hello" ]
 }
