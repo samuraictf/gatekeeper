@@ -7,3 +7,5 @@ clean::
 	make -C example clean
 
 include Makefile.exe
+
+LDFLAGS+=-shared
