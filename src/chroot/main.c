@@ -9,7 +9,10 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    do_chroot(argv[1]);
+    chroot_add_uid_mapping(getuid(), getuid());
+    chroot_add_gid_mapping(getgid(), getgid());
+    chroot_add_bind_defaults();
+    chroot_invoke(argv[1]);
 
     execvp(argv[2], &argv[2]);
 }

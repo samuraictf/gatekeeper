@@ -6,6 +6,6 @@ setup() {
 
 @test "${BATS_TEST_DIRNAME##*/} starts at /" {
     uname -s | grep Darwin && skip
-    run chroot $BATS_TEST_DIRNAME/example sh -c 'echo $PWD'
-    [ "$output" = "/" ]
+    run chroot $BATS_TEST_DIRNAME/example sh -c 'echo "XX$(pwd)XX"'
+    [[ "$output" =~ "/" ]]
 }

@@ -23,23 +23,80 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-void do_chroot(char* directory)
+#include "capdrop.h"
+
+#define BIND_POINTS_MAX 64
+size_t  bind_points_count = 0;
+char * bind_points[BIND_POINTS_MAX];
+
+#define UID_MAP_MAX 64
+size_t n_uids = 0;
+uid_t real_uids[UID_MAP_MAX] = {0};
+uid_t fake_uids[UID_MAP_MAX] = {0};
+
+#define GID_MAP_MAX 64
+size_t n_gids = 0;
+gid_t real_gids[UID_MAP_MAX] = {0};
+gid_t fake_gids[UID_MAP_MAX] = {0};
+
+int permit_forking_in_chroot = 1;
+
+void chroot_add_uid_mapping(int real, int fake)
 {
-    uid_t uid = getuid();
-    uid_t gid = getgid();
+    real_uids[n_uids] = real;
+    fake_uids[n_uids] = fake;
+    n_uids++;
+}
+
+void chroot_add_gid_mapping(int real, int fake)
+{
+    real_gids[n_gids] = real;
+    fake_gids[n_gids] = fake;
+    n_gids++;
+}
+
+
+void chroot_block_forking()
+{
+    permit_forking_in_chroot = 0;
+}
+
+void chroot_add_bind(char* path)
+{
+    bind_points[bind_points_count] = path;
+    bind_points_count++;
+}
+
+void chroot_add_bind_defaults()
+{
+    chroot_add_bind("/bin");
+    chroot_add_bind("/dev");
+    chroot_add_bind("/etc");
+    chroot_add_bind("/lib");
+    chroot_add_bind("/proc");
+    chroot_add_bind("/sbin");
+    chroot_add_bind("/tmp");
+    chroot_add_bind("/usr");
+}
+
+int chroot_invoke(char* directory)
+{
     char buf[32];
     struct stat st;
+    int status;
 
     //
     // The root directory should not be writeable by the current user.
     //
     if(0 != stat(directory, &st)) {
         puts("6KOhE9G1Hqo9WStz");
+        status = 1;
     }
 
     // We should not own the root directory.
-    if(st.st_uid == uid) {
+    if(st.st_uid == getuid()) {
         puts("KzANG220VzKa+SsY");
+        status = 1;
     }
 
     chmod(directory, st.st_mode & ~(S_IWGRP | S_IWUSR | S_IWOTH));
@@ -47,15 +104,25 @@ void do_chroot(char* directory)
     //
     // Create a new namespace
     //
-    if(0 != unshare(CLONE_NEWUSER|CLONE_NEWIPC|CLONE_NEWNS|CLONE_NEWPID|CLONE_NEWUTS|CLONE_NEWNET)) {
+    if(0 != unshare(CLONE_NEWUSER|CLONE_NEWIPC|CLONE_NEWNS|CLONE_NEWPID|CLONE_NEWUTS|CLONE_NEWNET|CLONE_FS|CLONE_FILES)) {
         puts("kRtjpYi0N2SKnDlV");
+        status = 1;
     }
 
     //
-    // Map ourselves to UID 0.
+    // Map all of the UIDs
+    //
+    // File format of uid_map and gid_map is:
+    //
+    //  ID-inside-ns   ID-outside-ns   length
     //
     int fd = open("/proc/self/uid_map", O_RDWR);
-    write(fd, buf, snprintf(buf, sizeof buf, "1 %u 1\n", uid));
+    for(size_t i = 0; i < n_uids; i++) {
+        size_t n = snprintf(buf, sizeof buf, "%u %u 1\n", fake_uids[i], real_uids[i]);
+        if(0 <= write(fd, buf, n)) {
+            status = 1;
+        }
+    }
     close(fd);
 
     fd = open("/proc/self/setgroups", O_RDWR);
@@ -63,31 +130,33 @@ void do_chroot(char* directory)
     close(fd);
 
     fd = open("/proc/self/gid_map", O_RDWR);
-    write(fd, buf, snprintf(buf, sizeof buf, "1 %u 1\n", gid));
+    for(size_t i = 0; i < n_gids; i++) {
+        size_t n = snprintf(buf, sizeof buf, "%u %u 1\n", fake_gids[i], real_gids[i]);
+        if(0 <= write(fd, buf, n)) {
+            status = 1;
+        }
+    }
     close(fd);
 
+
     //
-    // Set up the mount points
+    // Bind all of the bind points
     //
     chdir(directory);
-    char * bind_points[] = {
-        "/bin",
-        "/dev",
-        "/lib",
-        "/proc",
-        "/sbin",
-        "/sbin",
-        "/tmp",
-        "/tmp",
-        "/usr",
-        "/usr",
-        NULL
-    };
 
-    for(char **bp = bind_points; *bp; bp++) {
-        snprintf(buf, sizeof buf, "./%s", *bp);
+    for(size_t i = 0; i < bind_points_count; i++) {
+        snprintf(buf, sizeof buf, ".%s", bind_points[i]);
         mkdir(buf, 0111);
-        mount(*bp, buf, 0, MS_BIND|MS_REC, 0);
+        mount(bind_points[i], buf, 0, MS_BIND|MS_REC, 0);
+    }
+
+
+    //
+    // Close all file descriptors except for stdio,
+    // to prevent any escapes.
+    //
+    for(int fd = 3; fd < 32; fd++) {
+        close(fd);
     }
 
     //
@@ -98,27 +167,16 @@ void do_chroot(char* directory)
     }
     chdir("/");
 
-    gid=1;
-    setresgid(1, 1, 1);
-    setgroups(1,&gid);
-    setresuid(1, 1, 1);
-
-    gid_t gids[512];
-    getgroups(512, gids);
-
     //
     // Drop all capabilities in the namespace so that there's no escape.
     //
-    struct __user_cap_header_struct hdr = {0};
-    struct __user_cap_data_struct data = {0};
-    hdr.version = _LINUX_CAPABILITY_VERSION;
-    hdr.pid = 0;
-    data.effective = data.permitted = data.inheritable = 0;
-    capset(&hdr, &data);
-    prctl(PR_SET_KEEPCAPS, 0);
-    prctl(PR_SET_DUMPABLE, 0);
+    capdrop();
 
-    if(fork() > 0) {
-        wait(0);
+    if(permit_forking_in_chroot && fork() > 0) {
+        int status;
+        wait(&status);
+        exit(status);
     }
+
+    return status;
 }
