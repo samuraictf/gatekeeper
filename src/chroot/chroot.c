@@ -70,31 +70,25 @@ void do_chroot(char* directory)
     // Set up the mount points
     //
     chdir(directory);
-    mkdir("./tmp", 0111);
-    mkdir("./dev", 0111);
-    mkdir("./proc", 0111);
-    mkdir("./bin", 0111);
-    mkdir("./lib", 0111);
-    mkdir("./usr", 0111);
-    mkdir("./etc", 0111);
-    mkdir("./sbin", 0111);
-    mount("/dev",  "./dev",  0, MS_BIND|MS_REC, 0);
-    mount("/bin",  "./bin",  0, MS_BIND|MS_REC, 0);
-    mount("/lib",  "./lib",  0, MS_BIND|MS_REC, 0);
-    mount("/usr",  "./usr",  0, MS_BIND|MS_REC, 0);
-    mount("/sbin",  "./sbin",  0, MS_BIND|MS_REC, 0);
-    mount("/proc", "./proc", 0, MS_BIND|MS_REC, 0);
-    mount("/tmp",  "./tmp",  0, MS_BIND|MS_REC, 0);
-    mount("/etc",  "./etc",  0, MS_BIND|MS_REC, 0);
-    chmod("./tmp", 0111);
-    chmod("./dev", 0111);
-    chmod("./proc", 0111);
-    chmod("./bin", 0111);
-    chmod("./lib", 0111);
-    chmod("./usr", 0111);
-    chmod("./sbin", 0111);
-    chmod("./etc", 0111);
+    char * bind_points[] = {
+        "/bin",
+        "/dev",
+        "/lib",
+        "/proc",
+        "/sbin",
+        "/sbin",
+        "/tmp",
+        "/tmp",
+        "/usr",
+        "/usr",
+        NULL
+    };
 
+    for(char **bp = bind_points; *bp; bp++) {
+        snprintf(buf, sizeof buf, "./%s", *bp);
+        mkdir(buf, 0111);
+        mount(*bp, buf, 0, MS_BIND|MS_REC, 0);
+    }
 
     //
     // Go into the chroot
