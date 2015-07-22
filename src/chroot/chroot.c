@@ -55,7 +55,7 @@ void do_chroot(char* directory)
     // Map ourselves to UID 0.
     //
     int fd = open("/proc/self/uid_map", O_RDWR);
-    write(fd, buf, snprintf(buf, sizeof buf, "%u %u 1\n", uid, uid));
+    write(fd, buf, snprintf(buf, sizeof buf, "1 %u 1\n", uid));
     close(fd);
 
     fd = open("/proc/self/setgroups", O_RDWR);
@@ -63,7 +63,7 @@ void do_chroot(char* directory)
     close(fd);
 
     fd = open("/proc/self/gid_map", O_RDWR);
-    write(fd, buf, snprintf(buf, sizeof buf, "%u %u 1\n", gid, gid));
+    write(fd, buf, snprintf(buf, sizeof buf, "1 %u 1\n", gid));
     close(fd);
 
     //
@@ -98,9 +98,10 @@ void do_chroot(char* directory)
     }
     chdir("/");
 
-    setresgid(gid, gid, gid);
-    setgroups(0,&gid);
-    setresuid(uid, uid, uid);
+    gid=1;
+    setresgid(1, 1, 1);
+    setgroups(1,&gid);
+    setresuid(1, 1, 1);
 
     gid_t gids[512];
     getgroups(512, gids);
@@ -117,8 +118,7 @@ void do_chroot(char* directory)
     prctl(PR_SET_KEEPCAPS, 0);
     prctl(PR_SET_DUMPABLE, 0);
 
-    int pid = fork();
-    if(pid != 0) {
+    if(fork() > 0) {
         wait(0);
     }
 }
