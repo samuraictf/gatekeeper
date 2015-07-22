@@ -73,6 +73,8 @@ void chroot_add_bind_defaults()
     chroot_add_bind("/dev");
     chroot_add_bind("/etc");
     chroot_add_bind("/lib");
+    chroot_add_bind("/lib32");
+    chroot_add_bind("/lib64");
     chroot_add_bind("/proc");
     chroot_add_bind("/sbin");
     chroot_add_bind("/tmp");
