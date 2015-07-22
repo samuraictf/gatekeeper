@@ -63,9 +63,9 @@ void chroot_block_forking()
     permit_forking_in_chroot = 0;
 }
 
-void chroot_add_bind(char* realpath, char* chrootpath, int flags)
+void chroot_add_bind(char* path, char* chrootpath, int flags)
 {
-    real_bind[n_binds] = realpath;
+    real_bind[n_binds] = realpath(path, NULL);
     fake_bind[n_binds] = chrootpath;
     flag_bind[n_binds] = flags;
     n_binds++;
