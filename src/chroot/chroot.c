@@ -22,12 +22,15 @@
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <linux/fs.h>
 
 #include "capdrop.h"
 
 #define BIND_POINTS_MAX 64
-size_t  bind_points_count = 0;
-char * bind_points[BIND_POINTS_MAX];
+size_t  n_binds = 0;
+char * real_bind[BIND_POINTS_MAX];
+char * fake_bind[BIND_POINTS_MAX];
+int    flag_bind[BIND_POINTS_MAX];
 
 #define UID_MAP_MAX 64
 size_t n_uids = 0;
@@ -55,58 +58,49 @@ void chroot_add_gid_mapping(int real, int fake)
     n_gids++;
 }
 
-
 void chroot_block_forking()
 {
     permit_forking_in_chroot = 0;
 }
 
-void chroot_add_bind(char* path)
+void chroot_add_bind(char* realpath, char* chrootpath, int flags)
 {
-    bind_points[bind_points_count] = path;
-    bind_points_count++;
+    real_bind[n_binds] = realpath;
+    fake_bind[n_binds] = chrootpath;
+    flag_bind[n_binds] = flags;
+    n_binds++;
 }
 
 void chroot_add_bind_defaults()
 {
-    chroot_add_bind("/bin");
-    chroot_add_bind("/dev");
-    chroot_add_bind("/etc");
-    chroot_add_bind("/lib");
-    chroot_add_bind("/lib32");
-    chroot_add_bind("/lib64");
-    chroot_add_bind("/proc");
-    chroot_add_bind("/sbin");
-    chroot_add_bind("/tmp");
-    chroot_add_bind("/usr");
+    chroot_add_bind("/bin", "/bin", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/dev", "/dev", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/etc", "/etc", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/lib", "/lib", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/lib32", "/lib32", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/lib64", "/lib64", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/proc", "/proc", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/sbin", "/sbin", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/tmp", "/tmp", MS_NOSUID|MS_RDONLY);
+    chroot_add_bind("/usr", "/usr", MS_NOSUID|MS_RDONLY);
 }
 
 int chroot_invoke(char* directory)
 {
     char buf[32];
-    struct stat st;
     int status;
-
-    //
-    // The root directory should not be writeable by the current user.
-    //
-    if(0 != stat(directory, &st)) {
-        puts("6KOhE9G1Hqo9WStz");
-        status = 1;
-    }
-
-    // We should not own the root directory.
-    if(st.st_uid == getuid()) {
-        puts("KzANG220VzKa+SsY");
-        status = 1;
-    }
-
-    chmod(directory, st.st_mode & ~(S_IWGRP | S_IWUSR | S_IWOTH));
 
     //
     // Create a new namespace
     //
-    if(0 != unshare(CLONE_NEWUSER|CLONE_NEWIPC|CLONE_NEWNS|CLONE_NEWPID|CLONE_NEWUTS|CLONE_NEWNET|CLONE_FS|CLONE_FILES)) {
+    if(0 != unshare(CLONE_NEWUSER
+                  | CLONE_NEWIPC
+                  | CLONE_NEWNS
+                  | CLONE_NEWPID
+                  | CLONE_NEWUTS
+                  | CLONE_NEWNET
+                  | CLONE_FS
+                  | CLONE_FILES)) {
         puts("kRtjpYi0N2SKnDlV");
         status = 1;
     }
@@ -140,18 +134,27 @@ int chroot_invoke(char* directory)
     }
     close(fd);
 
-
     //
     // Bind all of the bind points
     //
     chdir(directory);
 
-    for(size_t i = 0; i < bind_points_count; i++) {
-        snprintf(buf, sizeof buf, ".%s", bind_points[i]);
-        mkdir(buf, 0111);
-        mount(bind_points[i], buf, 0, MS_BIND|MS_REC, 0);
+    for(size_t i = 0; i < n_binds; i++) {
+        snprintf(buf, sizeof buf, ".%s", fake_bind[i]);
+        mkdir(buf, 0555);
+        mount(real_bind[i], buf, 0, MS_BIND|MS_REC | flag_bind[i], 0);
     }
 
+    //
+    // Remount the root as read-only.
+    //
+    chdir("..");
+    snprintf(buf, sizeof buf, "%s.ro", directory);
+    mkdir(buf, 0555);
+    mount(directory, buf, "bind", MS_BIND|MS_REC, 0);
+    mount(directory, buf, "none", MS_REMOUNT|MS_BIND|MS_RDONLY, 0);
+    directory = buf;
+    chdir(directory);
 
     //
     // Close all file descriptors except for stdio,
@@ -182,3 +185,4 @@ int chroot_invoke(char* directory)
 
     return status;
 }
+

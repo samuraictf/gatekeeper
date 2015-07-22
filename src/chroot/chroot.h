@@ -24,7 +24,7 @@ void chroot_add_bind_defaults();
 /**
  * Adds a bind point
  */
-void chroot_add_bind(char* path);
+void chroot_add_bind(char* realpath, char* chrootpath, int flags);
 
 /**
  * Actually invoke the chroot.
