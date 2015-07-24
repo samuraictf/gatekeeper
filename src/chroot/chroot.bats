@@ -15,9 +15,3 @@ setup() {
     run chroot $BATS_TEST_DIRNAME/example sudo id
     [[ "$output" =~ "setuid" ]]
 }
-
-@test "${BATS_TEST_DIRNAME##*/} cannot setuid root" {
-    uname -s | grep Darwin && skip
-    run chroot $BATS_TEST_DIRNAME/example sudo id
-    [[ "$output" =~ "setuid" ]]
-}
