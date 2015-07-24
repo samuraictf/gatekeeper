@@ -23,7 +23,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <linux/fs.h>
-
+#include <sys/syscall.h>
 #include "capdrop.h"
 
 #define BIND_POINTS_MAX 64
@@ -43,6 +43,7 @@ gid_t real_gids[UID_MAP_MAX] = {0};
 gid_t fake_gids[UID_MAP_MAX] = {0};
 
 int permit_forking_in_chroot = 1;
+int mount_defaults           = 0;
 
 void chroot_add_uid_mapping(int real, int fake)
 {
@@ -73,36 +74,58 @@ void chroot_add_bind(char* path, char* chrootpath, int flags)
 
 void chroot_add_bind_defaults()
 {
-    chroot_add_bind("/bin", "/bin", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/dev", "/dev", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/etc", "/etc", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/lib", "/lib", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/lib32", "/lib32", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/lib64", "/lib64", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/proc", "/proc", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/sbin", "/sbin", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/tmp", "/tmp", MS_NOSUID|MS_RDONLY);
-    chroot_add_bind("/usr", "/usr", MS_NOSUID|MS_RDONLY);
+    mount_defaults = 1;
+    chroot_add_bind("/bin", "/bin", MS_RDONLY);
+    chroot_add_bind("/dev", "/dev", MS_RDONLY);
+    chroot_add_bind("/etc", "/etc", MS_RDONLY);
+    chroot_add_bind("/lib", "/lib", MS_RDONLY);
+    chroot_add_bind("/lib32", "/lib32", MS_RDONLY);
+    chroot_add_bind("/lib64", "/lib64", MS_RDONLY);
+    chroot_add_bind("/sbin", "/sbin", MS_RDONLY);
+    chroot_add_bind("/usr", "/usr", MS_RDONLY);
+}
+
+int init_exitstatus = 0;
+void init_term(int __attribute__ ((unused)) sig)
+{
+    _exit(init_exitstatus);
+}
+
+void chroot_waitpid(pid_t rootpid)
+{
+    pid_t pid;
+    int status;
+    /* so that we exit with the right status */
+    signal(SIGTERM, init_term);
+
+    while ((pid = wait(&status)) > 0) {
+        /*
+         * This loop will only end when either there are no processes
+         * left inside our pid namespace or we get a signal.
+         */
+        if (pid == rootpid)
+            init_exitstatus = status;
+    }
+    if (!WIFEXITED(init_exitstatus))
+        _exit(1);
+    _exit(WEXITSTATUS(init_exitstatus));
 }
 
 int chroot_invoke(char* directory)
 {
-    char buf[32];
+    char buf[512];
     int status;
+    int gid = getgid();
+    int uid = getuid();
 
-    //
-    // Create a new namespace
-    //
-    if(0 != unshare(CLONE_NEWUSER
-                  | CLONE_NEWIPC
-                  | CLONE_NEWNS
-                  | CLONE_NEWPID
-                  | CLONE_NEWUTS
-                  | CLONE_NEWNET
-                  | CLONE_FS
-                  | CLONE_FILES)) {
-        puts("kRtjpYi0N2SKnDlV");
-        status = 1;
+    unshare(CLONE_NEWUSER|CLONE_NEWNS|CLONE_NEWNET|CLONE_FS|CLONE_FILES|CLONE_NEWIPC|CLONE_NEWUTS);
+    int child_pid = syscall(SYS_clone, CLONE_NEWPID | SIGCHLD, NULL);
+
+    if(child_pid < 0) {
+        return 1;
+    }
+    else if(child_pid > 0) {
+        chroot_waitpid(child_pid);
     }
 
     //
@@ -134,6 +157,12 @@ int chroot_invoke(char* directory)
     }
     close(fd);
 
+    // avoid propagating mounts to or from the real root
+    if(mount(NULL, "/", NULL, MS_PRIVATE|MS_REC, NULL) < 0) {
+        puts("wOa3ljKHRnCSJD+a");
+    }
+
+
     //
     // Bind all of the bind points
     //
@@ -142,7 +171,7 @@ int chroot_invoke(char* directory)
     for(size_t i = 0; i < n_binds; i++) {
         snprintf(buf, sizeof buf, ".%s", fake_bind[i]);
         mkdir(buf, 0555);
-        mount(real_bind[i], buf, 0, MS_BIND|MS_REC | flag_bind[i], 0);
+        mount(real_bind[i], buf, "bind", MS_BIND|MS_REC|MS_NOSUID| flag_bind[i], 0);
     }
 
     //
@@ -152,7 +181,7 @@ int chroot_invoke(char* directory)
     snprintf(buf, sizeof buf, "%s.ro", directory);
     mkdir(buf, 0555);
     mount(directory, buf, "bind", MS_BIND|MS_REC, 0);
-    mount(directory, buf, "none", MS_REMOUNT|MS_BIND|MS_RDONLY, 0);
+    mount(directory, buf, "none", MS_REMOUNT|MS_BIND|MS_RDONLY|MS_NOSUID, 0);
     directory = buf;
     chdir(directory);
 
@@ -172,16 +201,25 @@ int chroot_invoke(char* directory)
     }
     chdir("/");
 
+    // We need to unmount /proc in order to drop the procfs from
+    // the parent namespace, even if we do not actually re-mount it.
+    umount("/proc");
+
+    if(mount_defaults) {
+        mount("none", "/tmp", "tmpfs", 0, "size=128M,mode=777");
+        mount("proc",
+              "/proc",
+              "proc",
+              MS_NODEV|MS_NOEXEC|MS_NOSUID|MS_RDONLY,
+              NULL);
+    }
+
     //
     // Drop all capabilities in the namespace so that there's no escape.
     //
+    setresuid(uid,uid,uid);
+    setresgid(gid,gid,gid);
     capdrop();
-
-    if(permit_forking_in_chroot && fork() > 0) {
-        int status;
-        wait(&status);
-        exit(status);
-    }
 
     return status;
 }

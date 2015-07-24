@@ -12,9 +12,12 @@
 #include <unistd.h>
 #include <sys/prctl.h>
 
+#define SECURE_ALL_BITS         0x15
+#define SECURE_ALL_LOCKS        (SECURE_ALL_BITS << 1)
+
 void capdrop() {
     // Disable ever gaining root e.g. via setuid
-    prctl(PR_SET_SECUREBITS, 0x2f);
+    prctl(PR_SET_SECUREBITS,(SECURE_ALL_BITS | SECURE_ALL_LOCKS));
 
     // Drop all capabilities from the possible set
     for(int cap = 0; 0 == prctl(PR_CAPBSET_DROP, cap, 0, 0, 0); cap++);
@@ -27,12 +30,7 @@ void capdrop() {
     data.effective = data.permitted = data.inheritable = 0;
     capset(&hdr, &data);
 
-    // Not sure what this does
-    prctl(PR_SET_KEEPCAPS, 0, 0, 0, 0);
-
-    // Disable core dumps
-    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
-
-    // Disable all setuid effects
+    prctl(PR_SET_KEEPCAPS, 1);
+    prctl(PR_SET_DUMPABLE, 0);
     prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
 }
