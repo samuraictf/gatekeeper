@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
 
     chroot_add_bind_defaults();
     chroot_add_bind("home", "/home", 0);
-    chroot_invoke("example");
+    chroot_invoke(argv[1]);
 
     rlimit_nproc(1);
 
