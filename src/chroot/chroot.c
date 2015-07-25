@@ -172,7 +172,6 @@ int chroot_invoke(char* directory)
         puts("wOa3ljKHRnCSJD+a");
     }
 
-
     //
     // Bind all of the bind points
     //
@@ -183,6 +182,10 @@ int chroot_invoke(char* directory)
         mkdir(buf, 0555);
         mount(real_bind[i], buf, "bind", MS_BIND|MS_REC|MS_NOSUID| flag_bind[i], 0);
     }
+
+    // We need these for mounts which may happen below
+    mkdir("./tmp", 0777);
+    mkdir("./proc", 0555);
 
     //
     // Remount the root as read-only.
