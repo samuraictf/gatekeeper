@@ -72,6 +72,12 @@ void chroot_add_bind(char* path, char* chrootpath, int flags)
     n_binds++;
 }
 
+int real_tmp = 0;
+
+void chroot_real_tmp() {
+    real_tmp = 1;
+}
+
 void chroot_add_bind_defaults()
 {
     mount_defaults = 1;
@@ -83,6 +89,10 @@ void chroot_add_bind_defaults()
     chroot_add_bind("/lib64", "/lib64", MS_RDONLY);
     chroot_add_bind("/sbin", "/sbin", MS_RDONLY);
     chroot_add_bind("/usr", "/usr", MS_RDONLY);
+
+    if(real_tmp) {
+        chroot_add_bind("/tmp", "/tmp", MS_RDONLY|MS_NOEXEC);
+    }
 }
 
 int init_exitstatus = 0;
@@ -206,7 +216,9 @@ int chroot_invoke(char* directory)
     umount("/proc");
 
     if(mount_defaults) {
-        mount("none", "/tmp", "tmpfs", 0, "size=128M,mode=777");
+        if(!real_tmp) {
+            mount("none", "/tmp", "tmpfs", 0, "size=128M,mode=777");
+        }
         mount("proc",
               "/proc",
               "proc",

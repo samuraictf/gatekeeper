@@ -12,6 +12,11 @@ void chroot_add_uid_mapping(int real, int fake);
 void chroot_add_gid_mapping(int real, int fake);
 
 /**
+ * Enable using the real (instead of fake/ephemeral) /tmp.
+ */
+void chroot_real_tmp();
+
+/**
  * Block forking inside the chroot
  */
 void chroot_block_forking();

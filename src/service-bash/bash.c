@@ -19,9 +19,11 @@ int main(int argc, char** argv) {
     // for(size_t i = 0; i < n_gids; i++) {
     //     chroot_add_gid_mapping(groups[i], groups[i]);
     // }
+    chroot_real_tmp();
 
     chroot_add_bind_defaults();
     chroot_add_bind("home", "/home", 0);
+
     chroot_invoke(argv[1]);
 
     rlimit_nproc(1);
