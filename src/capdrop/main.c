@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    do_capdrop();
+    capdrop();
 
     execvp(argv[1], &argv[1]);
 }

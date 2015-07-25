@@ -6,13 +6,9 @@
 
 #include <sys/time.h>
 #include <sys/resource.h>
-int main(int argc, char** argv) {
-    if(argc < 3) {
-        printf("Usage: %s <limit> argv0 argv1\n", argv[0]);
-        exit(1);
-    }
+
+void rlimit_nproc(int n) {
     struct rlimit limit = {0,0};
-    limit.rlim_cur = limit.rlim_max = atoi(argv[1]);
+    limit.rlim_cur = limit.rlim_max = n;
     setrlimit(RLIMIT_NPROC, &limit);
-    execvp(argv[2], &argv[2]);
 }
