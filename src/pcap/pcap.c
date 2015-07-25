@@ -139,8 +139,6 @@ initialize_packet
 void
 get_local_remote_info
 (
-    proxied_socket  *in,
-    proxied_socket  *out
 );
 
 
@@ -162,7 +160,6 @@ ctrl_c
 {
     std_out.sequence    = 0;
     dprintf(2, "Got Ctrl+C, exiting\n");
-    dontcare            = 0;
     close(std_out.source);
     close(std_in.sink);
 }
@@ -221,7 +218,7 @@ main
 
 
     // Save off information about the std_in socket
-    get_local_remote_info(&std_out, &std_in);
+    get_local_remote_info();
 
     // Set up environment variables so that they're available from the child process.
     setup_environment("LOCAL", &std_out);

@@ -42,7 +42,7 @@ registered_callback *callbacks[] = {
     [STDERR_FILENO] = stderr_callbacks
 };
 
-void ignore_SIGPIPE(int dontcare) {dontcare=0;};
+void ignore_SIGPIPE(int unused) {};
 
 
 // Compatibility
