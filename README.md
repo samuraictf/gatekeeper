@@ -21,6 +21,14 @@ make CC=gcc
 make CC=clang-3.5
 ```
 
+## Testing
+
+Requires [`bats`](https://github.com/sstephenson/bats).
+
+```
+make test
+```
+
 ## Chaining Modules
 
 The modules are designed to be included in a larger project, or chained directly.  For example:
