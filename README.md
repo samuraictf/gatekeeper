@@ -8,7 +8,8 @@ Each module is also available as a library, which can be compiled into a larger,
 
 ## Requirements
 
-- libpcre3-dev
+- apt-get -y install make gcc libpcre3-dev libcap-dev libpcap-dev
+- make CC=gcc
 
 ## Chaining Modules
 
