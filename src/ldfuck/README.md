@@ -32,7 +32,7 @@ $ python demo.py ./example
 [*] hash chain
 [*] system: 0x7fa7466c5640
 [*] Stopped program './example'
-$ LD_PRELOAD=$PWD/../ldfuck LD_BIND_NOW=1 python demo.py example
+$ LD_PRELOAD=$PWD/../ldfuck LD_BIND_NOT=1 python demo.py example
 [*] '/home/user/gatekeeper/src/ldfuck/example/example'
     Arch:     amd64-64-little
     RELRO:    Full RELRO
