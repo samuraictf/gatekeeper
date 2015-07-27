@@ -1,7 +1,7 @@
 
 # -- Compilers --
-CC   := clang
-CXX  := clang++
+CC   := gcc
+CXX  := g++
 
 # -- Output files --
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
