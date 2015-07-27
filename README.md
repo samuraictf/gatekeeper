@@ -21,6 +21,15 @@ make
 make CC=clang-3.5
 ```
 
+### Cross-Compiling
+
+Just specific the name of the compiler.  For example:
+
+```
+make CC=aarch64-linux-gnu-gcc
+make CC=arm-linux-gnueabihf-gcc
+```
+
 ## Testing
 
 Requires [`bats`](https://github.com/sstephenson/bats).
