@@ -10,20 +10,49 @@ It's hard to break the link map without breaking lots of things.  This is about 
 
 ```
 $ cd demo
-$ python demo.py
-[+] Starting program './demo': Done
-[+] Resolving 'system' in 'libc.so': 0x7f6a2d6831c8
-[*] Trying lookup based on Build ID: 30c94dc66a1fe95180c3d68d2b89e576d5ae213c
+$ python demo.py ./example
+[*] '/home/user/gatekeeper/src/ldfuck/example/example'
+    Arch:     amd64-64-little
+    RELRO:    Full RELRO
+    Stack:    No canary found
+    NX:       NX enabled
+    PIE:      No PIE
+[x] Starting program './example'
+[+] Starting program './example': Done
+[x] Resolving 'system' in 'libc.so'
+[x] Resolving 'system' in 'libc.so': Finding linkmap
+[+] Resolving 'system' in 'libc.so': 0x7fa746c681c8
+[-] Could not find 'libc.so'
 [*] .gnu.hash/.hash, .strtab and .symtab offsets
-[*] Found DT_GNU_HASH at 0x7f6a2d457c00
-[*] Found DT_STRTAB at 0x7f6a2d457c10
-[*] Found DT_SYMTAB at 0x7f6a2d457c20
+[*] Found DT_GNU_HASH at 0x7fa746a3cc00
+[*] Found DT_STRTAB at 0x7fa746a3cc10
+[*] Found DT_SYMTAB at 0x7fa746a3cc20
 [*] .gnu.hash parms
 [*] hash chain index
 [*] hash chain
-[*] system: 0x7f6a2d0e0640
-[*] Stopped program './demo'
-$ export LD_BIND_NOW=1
-$ export LD_PRELOAD=$PWD/../ldfuck.so
-$ python demo.py
+[*] system: 0x7fa7466c5640
+[*] Stopped program './example'
+$ LD_PRELOAD=$PWD/../ldfuck LD_BIND_NOW=1 python demo.py example
+[*] '/home/user/gatekeeper/src/ldfuck/example/example'
+    Arch:     amd64-64-little
+    RELRO:    Full RELRO
+    Stack:    No canary found
+    NX:       NX enabled
+    PIE:      No PIE
+[x] Starting program './example'
+[+] Starting program './example': Done
+[x] Resolving 'system' in 'libc.so'
+[x] Resolving 'system' in 'libc.so': Finding linkmap
+[+] Resolving 'system' in 'libc.so': 0x7f66be4861c8
+[-] Could not find 'libc.so'
+[*] .gnu.hash/.hash, .strtab and .symtab offsets
+[*] Found DT_GNU_HASH at 0x7f66be484e90
+[*] Found DT_STRTAB at 0x7f66be484ea0
+[*] Found DT_SYMTAB at 0x7f66be484eb0
+[*] .gnu.hash parms
+[*] hash chain index
+[*] hash chain
+[-] Could not find a GNU hash that matched 0x1ceee48a
+[*] system: 0x0
+[*] Stopped program './example'
 ```

@@ -1,12 +1,11 @@
 from pwn import *
-context.arch = 'amd64'
-context.bytes = 8
+context.binary = sys.argv[1]
 
 
 def doit(p):
     def leak(address):
         p.pack(address)
-        return p.recvn(8)
+        return p.recvn(context.bytes)
 
     addr = p.unpack()
     d = DynELF(leak, addr)
