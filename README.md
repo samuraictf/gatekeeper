@@ -21,6 +21,13 @@ make
 make CC=clang-3.5
 ```
 
+You can also build a specific project.
+
+```
+cd src/chroot
+make
+```
+
 ### Cross-Compiling
 
 Just specific the name of the compiler.  For example:
