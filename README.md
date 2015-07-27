@@ -17,7 +17,7 @@ apt-get -y install make gcc libpcre3-dev libcap-dev libpcap-dev
 You can use `clang` or `gcc`.
 
 ```
-make CC=gcc
+make
 make CC=clang-3.5
 ```
 
