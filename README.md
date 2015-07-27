@@ -8,8 +8,18 @@ Each module is also available as a library, which can be compiled into a larger,
 
 ## Requirements
 
-- apt-get -y install make gcc libpcre3-dev libcap-dev libpcap-dev
-- make CC=gcc
+```
+apt-get -y install make gcc libpcre3-dev libcap-dev libpcap-dev
+```
+
+## Building
+
+You can use `clang` or `gcc`.
+
+```
+make CC=gcc
+make CC=clang-3.5
+```
 
 ## Chaining Modules
 
