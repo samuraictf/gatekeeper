@@ -11,7 +11,7 @@ setup() {
     	LD_PRELOAD=$BATS_TEST_DIRNAME/onepath \
         ONE_TRUE_PATH=/bin/bash \
     	bash <<EOF
-echo A
+builtin echo A
 /bin/echo B
 EOF
 
