@@ -5,7 +5,7 @@ setup() {
 }
 
 @test "${BATS_TEST_DIRNAME##*/} disabled" {
-	run bash -c 'echo hi; /bin/echo hello'
+	run bash -c 'builtin echo hi; /bin/echo hello'
 	[[ "$output" =~ "hi" ]]
 	[[ "$output" =~ "hello" ]]
     [ "$status" = 0 ]
@@ -13,7 +13,7 @@ setup() {
 
 @test "${BATS_TEST_DIRNAME##*/}" {
     uname -s | grep Darwin && skip
-	run env LD_PRELOAD="$BATS_TEST_DIRNAME/no_execve" bash -c 'echo hi; /bin/echo hello'
+	run env LD_PRELOAD="$BATS_TEST_DIRNAME/no_execve" bash -c 'builtin echo hi; /bin/echo hello'
 	[[ "$output" =~ "hi" ]]
 	[[ ! "$output" =~ "hello" ]]
     [ "$status" != 0 ]
