@@ -1,0 +1,3 @@
+[submodule "src/libseccomp"]
+	path = src/libseccomp
+	url = git@github.com:seccomp/libseccomp.git
