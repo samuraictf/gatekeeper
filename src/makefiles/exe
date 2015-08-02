@@ -1,12 +1,21 @@
 
 # -- Compilers --
+ifeq "$(CROSS_COMPILE)" ""
 CC   := gcc
 CXX  := g++
+else
+CC   := $(CROSS_COMPILE)-gcc
+CXX  := $(CROSS_COMPILE)-g++
+endif
 
 # -- Output files --
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 OUT ?= $(shell basename $(current_dir))$(SUFFIX)
+
+ifneq "$(CROSS_COMPILE)" ""
+OUT := $(OUT)-$(CROSS_COMPILE)
+endif
 
 # -- Directories --
 SRC ?= .

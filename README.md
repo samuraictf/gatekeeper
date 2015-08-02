@@ -30,11 +30,11 @@ make
 
 ### Cross-Compiling
 
-Just specific the name of the compiler.  For example:
+Just specific the name of the target.  You must have an appropriate compiler toolchain installed.
 
 ```
-make CC=aarch64-linux-gnu-gcc
-make CC=arm-linux-gnueabihf-gcc
+make CROSS_COMPILE=aarch64-linux-gnu
+make CROSS_COMPILE=arm-linux-gnueabihf
 ```
 
 ## Testing
