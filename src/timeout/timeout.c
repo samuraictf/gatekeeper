@@ -7,6 +7,7 @@
 void kill_timeout(int seconds) {
     if(fork() == 0) {
         sleep(seconds);
-        kill(getppid(), SIGKILL);
+        kill(-getppid(), SIGKILL);
     }
+    setpgrp();
 }
