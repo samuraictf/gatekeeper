@@ -13,14 +13,12 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
 OUT ?= $(shell basename $(current_dir))$(SUFFIX)
 
-ifneq "$(CROSS_COMPILE)" ""
-OUT := $(OUT)-$(CROSS_COMPILE)
-endif
+realpath    := $(shell readlink -e $(shell dirname $(mkfile_path)))
 
 # -- Directories --
 SRC ?= .
 INCLUDES = -I.
-LDFLAGS += -L.
+LDFLAGS := $(LDFLAGS) -L.
 
 # -- Flags --
 CFLAGS 		+= $(INCLUDES)
@@ -28,12 +26,24 @@ CFLAGS      += -std=gnu99 -fPIC
 LDFLAGS     += -fPIC
 
 # -- Security Flags --
+#
+# GCC for MIPS does not support -z now or -z noexecstack
+#
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
+ifeq (,$(findstring mips-,$(CROSS_COMPILE)))
 	LDFLAGS     +=  -z now -z noexecstack
 endif
-CFLAGS      +=  -fstack-protector \
-				-Wformat \
+endif
+
+#
+# GCC for MIPS does not support -fstack-protector
+#
+ifeq (,$(findstring mips-,$(CROSS_COMPILE)))
+CFLAGS      +=  -fstack-protector
+endif
+
+CFLAGS      +=  -Wformat \
 				-Wformat=2 \
 				-Wformat-security \
 				-fPIE -fPIC \
@@ -74,6 +84,7 @@ endif
 C_FILES   = $(wildcard $(SRC)/*.c)
 CPP_FILES = $(wildcard $(SRC)/*.cpp) $(wildcard $(SRC)/*.cc)
 OBJ_FILES = $(patsubst %.c, %.o, $(C_FILES)) $(patsubst %.cpp, %.o, $(CPP_FILES)) $(patsubst %.cc, %.o, $(CPP_FILES))
+LIB_FILES :=
 
 # -- Dependencies --
 DEPFILE = .depfile
@@ -90,7 +101,7 @@ endif
 
 # Output file
 # =========================================================
-$(OUT): $(OBJ_FILES)
+$(OUT): $(OBJ_FILES) $(LIB_FILES)
 	@echo Building binary $@ from [ $^ ]
 	$(LINK) $^ -o $@ $(LDFLAGS)
 
