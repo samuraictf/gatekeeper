@@ -5,6 +5,10 @@ Starts the target process in a chroot environment.  This can either be a bare ch
 
 As an additional benefit, we can also disable access to all network interfaces, disable forking, and prevent the spawned process from being able to kill anything outside the chroot.
 
+## feature test
+
+To test whether this feature will work on the target system, run the `feature-test` binary.
+
 ## usage
 
 ```sh
