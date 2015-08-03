@@ -10,8 +10,6 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    printf("__NR_execve = %i\n", __NR_execve);
-
     no_execve();
 
     if(0 != execvp(argv[1], &argv[1])) {
