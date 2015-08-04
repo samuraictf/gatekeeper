@@ -17,12 +17,3 @@ void randenv() {
     data[v]=0;
     setenv("FUN", data, 1);
 }
-
-int main(int argc, char** argv) {
-    if(argc < 2) {
-        printf("Usage: %s argv0 argv1\n", argv[0]);
-        exit(1);
-    }
-    randenv();
-    execvp(argv[1], &argv[1]);
-}
