@@ -33,15 +33,18 @@ int main(int argc, char** argv) {
     capdrop();
 
     // Make Use-After-Free harder to exploit
-    // set_malloc_flags();
+    set_malloc_flags();
 
     // Prevent the Global Offset Table (GOT) from being used
     // for a libc leak.
-    // set_got_nobind();
+    set_got_nobind();
 
     // Generate a random-sized environment variable to break
     // stack offsets.
-    // randenv();
+    randenv();
+
+    // Log crashes to /tmp
+    log_segv(argv[1]);
 
     execvp(argv[1], &argv[1]);
     perror("execvp");
