@@ -6,6 +6,9 @@
 #include "child_control.h"
 #include "rlimit_nproc.h"
 #include "timeout.h"
+#include "randenv.h"
+#include "malloc.h"
+#include "nobind.h"
 
 int main(int argc, char** argv) {
     if(argc < 2) {
@@ -28,6 +31,17 @@ int main(int argc, char** argv) {
     // This drops all capabilities, so setuid binaries cannot be used.
     // This includes things like crontab and at.
     capdrop();
+
+    // Make Use-After-Free harder to exploit
+    set_malloc_flags();
+
+    // Prevent the Global Offset Table (GOT) from being used
+    // for a libc leak.
+    set_got_nobind();
+
+    // Generate a random-sized environment variable to break
+    // stack offsets.
+    randenv();
 
     execvp(argv[1], &argv[1]);
 }
