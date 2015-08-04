@@ -5,9 +5,10 @@
 #include <signal.h>
 
 void kill_timeout(int seconds) {
-    if(fork() == 0) {
+    pid_t child = fork();
+    if(child != 0) {
         sleep(seconds);
-        kill(-getppid(), SIGKILL);
+        kill(-child, SIGKILL);
     }
     setpgrp();
 }
