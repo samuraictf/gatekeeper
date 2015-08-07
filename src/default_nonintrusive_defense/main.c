@@ -9,6 +9,7 @@
 #include "randenv.h"
 #include "malloc.h"
 #include "nobind.h"
+#include "segv.h"
 
 int main(int argc, char** argv) {
     if(argc < 2) {
