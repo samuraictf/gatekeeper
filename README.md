@@ -9,7 +9,7 @@ Each module is also available as a library, which can be compiled into a larger,
 ## Requirements
 
 ```
-apt-get -y install make gcc libpcre3-dev libcap-dev libpcap-dev libseccomp2
+apt-get -y install make gcc libpcre3-dev libcap-dev libpcap-dev libseccomp-dev
 ```
 
 ## Building
