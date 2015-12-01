@@ -1,5 +1,5 @@
 
-# rlimit_cpu
+# rlimit_fsize
 
 Limits the maximum size of a file which may be written.
 
