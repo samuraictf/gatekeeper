@@ -30,7 +30,7 @@ make
 
 ### Cross-Compiling
 
-Just specific the name of the target.  You must have an appropriate compiler toolchain installed.
+Just specify the name of the target.  You must have an appropriate compiler toolchain installed.
 
 ```
 make CROSS_COMPILE=aarch64-linux-gnu
